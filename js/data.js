@@ -741,7 +741,7 @@ const SONGS = [
   ]},
 ];
 
-const PRAISE = ['Great job!', 'Well done!', 'Super!', 'Excellent!', 'Fantastic!', 'Brilliant!', 'Yes! Good job!', 'Amazing!'];
+const PRAISE = ['Great job!', 'Well done!', 'Super!', 'Excellent!', 'Fantastic!', 'Brilliant!', 'Yes! Good job!', 'Amazing!', "You're a superstar!"];
 const RETRY_FR = ['Oups ! Essaie encore.', 'Presque ! Encore une fois.', 'Pas tout à fait. Écoute bien !'];
 const RETRY_EN = ['Oops! Try again.', 'Almost! Try again.', 'Listen again!'];
 const NUM_WORDS = ['zero','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve'];
