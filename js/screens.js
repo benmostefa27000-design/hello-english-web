@@ -48,12 +48,18 @@ Screens.home = (_, ctx) => {
       h('button', { class: 'me', onclick: () => Nav.go('who') }, h('span', { class: 'av' }, p.avatar), h('b', null, p.name)),
       h('div', { class: 'chips' }, h('span', { class: 'chip' }, '🔥 ', String(Store.streak())), h('span', { class: 'chip' }, '⭐ ', String(Store.totalStars())),
         h('button', { class: 'chip lock', onclick: () => parentGate(() => Nav.go('parent', {})) }, '🔒'))),
-    h('div', { class: 'hero' }, m, h('div', { class: 'speech' }, `Hello ${p.name}!`)),
+    h('div', { class: 'hero' }, m, h('div', { class: 'hero-side' }, h('div', { class: 'speech' }, `Hello ${p.name}!`),
+      h('button', { class: 'chip dress', onclick: () => Nav.go('wardrobe') }, '👕 Habille Bloop'))),
+    goalBar(),
+    !Store.placed() && Object.keys(ITEM).every(k => Store.level(k) === 0) ? h('button', { class: 'continue placement', onclick: () => Nav.go('placement') },
+      h('span', { class: 'ci' }, '🎯'), h('div', null, h('small', null, '2 minutes'), h('b', null, 'Quel est mon niveau ?')), h('span', { class: 'play' }, '▶')) : null,
     nl ? h('button', { class: 'continue', onclick: () => openLesson(nl) },
       h('span', { class: 'ci' }, THEMES.find(t => t.id === nl.theme).icon),
       h('div', null, h('small', null, 'Continuer'), h('b', null, THEMES.find(t => t.id === nl.theme).fr + ' · ' + nl.name)), h('span', { class: 'play' }, '▶')) : null,
     review ? h('button', { class: 'continue alt', onclick: () => Nav.go('session', review) },
       h('span', { class: 'ci' }, '☀️'), h('div', null, h('small', null, Store.dueCount() ? `${Store.dueCount()} mots à revoir` : '5 minutes'), h('b', null, 'Révision du jour' + (Store.stars(review.id) ? ' ✔' : ''))), h('span', { class: 'play' }, '▶')) : null,
+    (() => { const ch = dailyChallenge(); return h('button', { class: 'continue challenge', onclick: () => Nav.go('session', ch) },
+      h('span', { class: 'ci' }, ch.icon), h('div', null, h('small', null, 'Nouveau chaque jour'), h('b', null, ch.name + (Store.stars(ch.id) ? ' ✔' : ''))), h('span', { class: 'play' }, '▶')); })(),
     h('div', { class: 'tiles' },
       tile('🗺️', 'Parcours', 'Lessons', () => Nav.go('map'), '#FFE7A8'),
       tile('🎮', 'Jeux', 'Games', () => Nav.go('games'), '#CDEBFF'),
@@ -69,6 +75,15 @@ Screens.home = (_, ctx) => {
   return el;
 };
 
+// barre d'objectif du jour : 3 activités → le coffre s'ouvre
+function goalBar() {
+  const g = Store.goal(), n = Math.min(g.n, DAILY_GOAL);
+  return h('div', { class: 'goal' + (g.claimed ? ' done' : '') },
+    h('span', { class: 'goal-chest' }, g.claimed ? '🎁' : '🧰'),
+    h('div', { class: 'goal-body' }, h('b', null, g.claimed ? 'Coffre du jour ouvert ! +3 ⭐' : `Objectif du jour : ${n}/${DAILY_GOAL} activités`),
+      h('div', { class: 'goal-dots' }, Array.from({ length: DAILY_GOAL }, (_, i) => h('i', { class: i < n ? 'on' : '' })))));
+}
+
 function favCard(id) {
   const [kind, x] = id.split(':');
   if (kind === 'story') { const s = STORIES.find(z => z.id === x); return s && h('button', { class: 'mini-card', onclick: () => Nav.go('story', { id: x }) }, h('span', null, s.cover), s.fr); }
@@ -80,13 +95,23 @@ function favCard(id) {
 const favBtn = id => { const b = h('button', { class: 'fav' + (Store.isFav(id) ? ' on' : ''), onclick: e => { e.stopPropagation(); Store.toggleFav(id); b.classList.toggle('on'); Sfx.pop(); } }, '♥'); return b; };
 
 /* ---------------- Parcours ---------------- */
-Screens.map = () => h('div', { class: 'screen map' }, topBar('Parcours'),
-  h('div', { class: 'path' }, THEMES.map((t, i) => {
-    const pr = themeProgress(t.id);
-    return h('button', { class: 'island ' + (i % 2 ? 'r' : 'l'), style: { background: t.bg }, onclick: () => Nav.go('theme', { id: t.id }) },
-      h('span', { class: 'ii' }, t.icon), h('div', null, h('b', null, t.fr), h('small', null, t.en)),
-      h('div', { class: 'ip' }, h('span', null, `⭐ ${pr.got}/${pr.max}`), h('div', { class: 'pbar s' }, h('i', { style: { width: Math.round(pr.got / pr.max * 100) + '%' } }))));
-  })));
+Screens.map = () => {
+  let i = 0;
+  return h('div', { class: 'screen map' }, topBar('Parcours'),
+    LEVELS.map(L => {
+      const lp = levelProgress(L);
+      return h('div', { class: 'level-block' },
+        h('div', { class: 'level-head', style: { background: L.color } }, h('span', { class: 'lv-ic' }, L.icon),
+          h('div', null, h('b', null, `Niveau ${L.id} · ${L.name}`), h('small', null, L.cefr + (lp.reached ? ' · réussi ✔' : ` · ${lp.pct} %`))),
+          h('div', { class: 'pbar s' }, h('i', { style: { width: lp.pct + '%' } }))),
+        h('div', { class: 'path' }, L.themes.map(tid => {
+          const t = THEMES.find(x => x.id === tid), pr = themeProgress(tid);
+          return h('button', { class: 'island ' + (i++ % 2 ? 'r' : 'l'), style: { background: t.bg }, onclick: () => Nav.go('theme', { id: t.id }) },
+            h('span', { class: 'ii' }, t.icon), h('div', null, h('b', null, t.fr), h('small', null, t.en)),
+            h('div', { class: 'ip' }, h('span', null, `⭐ ${pr.got}/${pr.max}`), h('div', { class: 'pbar s' }, h('i', { style: { width: Math.round(pr.got / pr.max * 100) + '%' } }))));
+        })));
+    }));
+};
 
 Screens.theme = ({ id }) => {
   const t = THEMES.find(x => x.id === id);
@@ -227,7 +252,15 @@ Screens.story = ({ id, lessonId }, ctx) => {
   const read = () => { text.classList.add('reading'); Voice.stop(); return Voice.say(s.pages[i].en, 'en', { rate: 0.95 }).then(() => text.classList.remove('reading')); };
   const show = () => {
     const pg = s.pages[i];
-    scene.replaceChildren(h('span', { class: 'pop-in' }, pg.s));
+    // scène animée : chaque personnage entre à sa façon, puis bouge ; on peut le toucher
+    const actors = splitEmoji(pg.s);
+    const moves = ['enter-l', 'enter-r', 'enter-up', 'enter-pop'];
+    scene.replaceChildren(...actors.map((e, k) => {
+      const a = h('span', { class: `actor ${moves[(i + k) % moves.length]} idle-${(i + k) % 3}`, style: { animationDelay: `${k * 0.25}s, ${0.8 + k * 0.25}s` } }, e);
+      a.addEventListener('click', ev => { ev.stopPropagation(); a.classList.remove('boing'); void a.offsetWidth; a.classList.add('boing'); Sfx.pop(); });
+      return a;
+    }));
+    scene.style.background = `linear-gradient(180deg, #fff, ${(THEMES.find(t => t.id === s.theme) || {}).bg || '#fff'})`;
     text.replaceChildren(...pg.en.split(' ').map(w => h('span', { class: 'w', onclick: e => { e.stopPropagation(); Voice.stop(); Voice.say(w.replace(/[^A-Za-z'-]/g, '')); } }, w + ' ')));
     fr.textContent = ''; fr.classList.remove('on');
     dots.querySelectorAll('i').forEach((d, k) => d.classList.toggle('on', k <= i));
@@ -353,6 +386,24 @@ Screens.album = () => {
       : h('div', { class: 'stk' }, '?'))));
 };
 
+/* ---------------- Garde-robe de Bloop ---------------- */
+Screens.wardrobe = () => {
+  const coins = h('span', { class: 'tb-stars' }, '⭐ ', String(Store.coins()));
+  const stage = h('div', { class: 'wardrobe-stage' }, mascot('bloop', 'hero'));
+  const refresh = () => { stage.replaceChildren(mascot('bloop', 'hero')); coins.replaceChildren('⭐ ', String(Store.coins())); grid.replaceChildren(...cards()); };
+  const cards = () => WARDROBE.map(w => {
+    const own = Store.owns(w.id), wear = Store.wearing() === w.id, can = Store.coins() >= w.price;
+    return h('button', { class: 'wcard ward' + (wear ? ' wearing' : '') + (!own && !can ? ' locked' : ''), onclick: () => {
+      if (own) { Store.setWear(wear ? null : w.id); Sfx.pop(); refresh(); return; }
+      if (!can) { Sfx.bad(); toast(`Encore ${w.price - Store.coins()} ⭐ pour l'acheter !`); return; }
+      Store.buy(w.id, w.price); Sfx.star(); confetti(25); refresh(); Voice.say('Wow! I love it!');
+    } }, h('span', { class: 'ward-e' }, w.e), h('b', null, w.fr), h('small', null, own ? (wear ? 'Porté ✔' : 'À toi') : `⭐ ${w.price}`));
+  });
+  const grid = h('div', { class: 'wgrid' }, cards());
+  return h('div', { class: 'screen wardrobe' }, topBar('👕 Habille Bloop', { right: coins }),
+    stage, h('p', { class: 'muted center ward-help' }, 'Dépense tes étoiles pour habiller Bloop. Touche un habit pour le mettre ou l’enlever.'), grid);
+};
+
 /* ---------------- Pause (temps d'écran) ---------------- */
 Screens.timeup = () => h('div', { class: 'screen timeup' },
   mascot('bloop', 'sleepy'), h('h2', null, "C'est l'heure de la pause !"),
@@ -362,7 +413,7 @@ Screens.timeup = () => h('div', { class: 'screen timeup' },
 /* ---------------- Espace parents ---------------- */
 Screens.parent = ({ tab = 'progress', pid }) => {
   const S = Store.settings();
-  const tabs = h('div', { class: 'tabs' }, [['progress', '📊 Progrès'], ['settings', '⚙️ Réglages'], ['profiles', '👧 Profils'], ['transfer', '🔄 Transfert']].map(([k, t]) =>
+  const tabs = h('div', { class: 'tabs' }, [['progress', '📊 Progrès'], ['report', '🎓 Bilan'], ['settings', '⚙️ Réglages'], ['profiles', '👧 Profils'], ['transfer', '🔄 Transfert']].map(([k, t]) =>
     h('button', { class: 'tab' + (k === tab ? ' sel' : ''), onclick: () => Nav.replace('parent', { tab: k, pid }) }, t)));
   let body;
   if (tab === 'progress') {
@@ -406,6 +457,37 @@ Screens.parent = ({ tab = 'progress', pid }) => {
         NATIVE ? h('button', { class: 'btn ghost', onclick: () => window.Android.openTtsSettings() }, 'Réglages des voix Android') : null),
       (!ts.en || !ts.fr) ? h('p', { class: 'warn' }, `⚠️ Voix ${!ts.en ? 'anglaise' : 'française'} absente : installe-la dans « Réglages des voix Android » (Google Speech Services).`) : null,
       h('p', { class: 'muted small' }, 'Tout est gratuit, sans publicité, et les données restent sur ce téléphone.'));
+  } else if (tab === 'report') {
+    const cur = Store.profile();
+    const p = Store.profiles().find(x => x.id === pid) || cur;
+    Store.use(p.id);
+    const week = Store.actsLog(7), mins = Math.round(week.reduce((a, d) => a + d.s, 0) / 60), acts = week.reduce((a, d) => a + d.a, 0);
+    const since = Date.now() - 7 * 864e5;
+    const newWords = Object.keys(ITEM).filter(k => (Store.word(k).acq || 0) >= since);
+    const weak = Object.keys(ITEM).filter(k => { const w = Store.word(k); return w.ko > w.ok && w.ko > 0; }).slice(0, 10);
+    const CL = currentLevel();
+    const lines = [`Bilan de la semaine — ${p.name} (Hello English)`, `Niveau en cours : ${CL.id} · ${CL.name} (${CL.cefr})`,
+      `Temps : ${mins} min · Activités : ${acts} · Mots acquis cette semaine : ${newWords.length}`,
+      ...LEVELS.filter(L => levelProgress(L).reached).map(L => `✔ Niveau ${L.id} réussi : ${L.can.join(' ; ')}`),
+      weak.length ? `À retravailler : ${weak.map(k => ITEM[k].en).join(', ')}` : ''].filter(Boolean);
+    body = h('div', null,
+      Store.profiles().length > 1 ? h('div', { class: 'segs' }, Store.profiles().map(x => h('button', { class: 'seg' + (x.id === p.id ? ' sel' : ''), onclick: () => Nav.replace('parent', { tab, pid: x.id }) }, x.avatar + ' ' + x.name))) : null,
+      h('div', { class: 'kpis' }, kpi('⏱️', mins + ' min', 'cette semaine'), kpi('✅', acts, 'activités'), kpi('🆕', newWords.length, 'mots acquis'), kpi(CL.icon, 'Niv. ' + CL.id, CL.cefr)),
+      newWords.length ? h('div', { class: 'weak' }, newWords.slice(0, 18).map(k => h('button', { class: 'tchip', onclick: () => Voice.say(spoken(ITEM[k])) }, visual(ITEM[k], 'xs'), ITEM[k].en))) : null,
+      h('h3', null, 'Ce que ton enfant sait faire'),
+      LEVELS.map(L => {
+        const lp = levelProgress(L);
+        return h('div', { class: 'can-card' + (lp.reached ? ' ok' : '') },
+          h('div', { class: 'can-head' }, h('b', null, `${L.icon} Niveau ${L.id} · ${L.name}`), h('small', null, `${L.cefr} · ${lp.acq}/${lp.words} mots · ${lp.done}/${lp.lessons} leçons`)),
+          h('div', { class: 'pbar s' }, h('i', { style: { width: lp.pct + '%' } })),
+          h('ul', null, L.can.map(c => h('li', null, (lp.reached ? '✔ ' : '○ ') + c))));
+      }),
+      weak.length ? [h('h3', null, 'À retravailler ensemble'), h('div', { class: 'weak' }, weak.map(k => h('button', { class: 'tchip', onclick: () => Voice.say(spoken(ITEM[k])) }, visual(ITEM[k], 'xs'), ITEM[k].en)))] : null,
+      h('div', { class: 'row gap wrap' },
+        h('button', { class: 'btn', onclick: () => Transfer.copy(lines.join('\n')).then(ok => toast(ok ? 'Bilan copié ✔' : 'Copie impossible')) }, '📋 Copier le bilan'),
+        h('button', { class: 'btn ghost', onclick: () => { Store.use(p.id); Nav.go('placement'); } }, '🎯 Refaire le test de niveau')),
+      h('p', { class: 'muted small' }, 'Les niveaux suivent le programme Cambridge Pre-A1 Starters (le tout premier niveau officiel pour les enfants), puis A1 Movers. Un niveau est « réussi » quand la plupart de ses mots sont acquis et ses leçons faites.'));
+    Store.use(cur.id);
   } else if (tab === 'transfer') {
     const out = h('textarea', { class: 'input code-box', readonly: 'readonly', rows: 4, placeholder: 'Le code apparaîtra ici…', onfocus: e => e.target.select() });
     const inp = h('textarea', { class: 'input code-box', rows: 4, placeholder: 'Colle ici le code reçu de l’autre appareil' });

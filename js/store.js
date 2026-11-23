@@ -65,6 +65,7 @@ const Store = (() => {
       if (good === true && (w.due || 0) <= now) { w.box = Math.min(6, (w.box || 0) + 1); w.due = now + GAPS[w.box] * DAY; }
       else if (good === false) { w.box = Math.max(0, (w.box || 0) - 2); w.due = now + DAY * 0.5; }
       else if (good === null && w.due == null) w.due = now + DAY;
+      if (!w.acq && w.ok >= 4 && w.ok / (w.ok + w.ko) >= 0.7) w.acq = now; // date où le mot est acquis (bilan)
       w.last = now; save();
     },
     dueCount() { const p = P(); if (!p) return 0; const now = Date.now(); return Object.keys(p.words).filter(k => ITEM[k] && p.words[k].due && p.words[k].due <= now).length; },
@@ -105,6 +106,33 @@ const Store = (() => {
     },
     unlockToday() { const p = P(); if (p) { p.unlockedTime = today(); save(); } },
 
+    /* ---- garde-robe de Bloop : les étoiles servent aussi de monnaie ---- */
+    coins() { const p = P(); return p ? Math.max(0, this.totalStars() - (p.spent || 0)) : 0; },
+    owns(id) { const p = P(); return !!p && (p.owned || []).includes(id); },
+    buy(id, price) {
+      const p = P(); if (!p || this.owns(id) || this.coins() < price) return false;
+      p.owned = [...(p.owned || []), id]; p.spent = (p.spent || 0) + price; p.wear = id; save(); return true;
+    },
+    wearing() { const p = P(); return p ? p.wear || null : null; },
+    setWear(id) { const p = P(); if (p) { p.wear = id; save(); } },
+
+    /* ---- objectif du jour, activités par jour (bilan) ---- */
+    goal() { const p = P(); const g = (p && p.goal && p.goal.d === today()) ? p.goal : { d: today(), n: 0, claimed: false }; return g; },
+    addActivity() {
+      const p = P(); if (!p) return { reached: false };
+      const g = this.goal(); g.n++; p.goal = g;
+      p.acts = p.acts || {}; p.acts[today()] = (p.acts[today()] || 0) + 1;
+      let reached = false;
+      if (g.n >= DAILY_GOAL && !g.claimed) { g.claimed = true; p.bonus = (p.bonus || 0) + 3; p.chests = (p.chests || 0) + 1; reached = true; }
+      save(); return { reached, n: g.n };
+    },
+    actsLog(n = 7) { const p = P(); return this.daysLog(n).map(d => ({ d: d.d, k: d.k, s: d.s, a: p && p.acts ? (p.acts[d.k] || 0) : 0 })); },
+
+    /* ---- niveau de départ (test de niveau) ---- */
+    startLevel() { const p = P(); return p ? (p.startLevel || 1) : 1; },
+    setPlacement(level) { const p = P(); if (p) { p.startLevel = level; p.placed = true; save(); } },
+    placed() { const p = P(); return !!p && !!p.placed; },
+
     resetProfile(id) { delete db.prog[id]; save(); },
     exportJSON() { return JSON.stringify(db); },
 
@@ -137,6 +165,12 @@ const Store = (() => {
         cur.moves = Math.max(cur.moves || 0, inProg.moves || 0);
         cur.bonus = Math.max(cur.bonus || 0, inProg.bonus || 0);
         cur.stickersSeen = Math.max(cur.stickersSeen || 0, inProg.stickersSeen || 0);
+        cur.acts = maxMap(cur.acts, inProg.acts);
+        cur.owned = Array.from(new Set([...(cur.owned || []), ...(inProg.owned || [])]));
+        cur.spent = Math.max(cur.spent || 0, inProg.spent || 0);
+        cur.wear = cur.wear || inProg.wear || null;
+        cur.chests = Math.max(cur.chests || 0, inProg.chests || 0);
+        if (inProg.placed && !cur.placed) { cur.placed = true; cur.startLevel = inProg.startLevel; }
         res.merged.push(ip.name);
       }
       if (!db.current && db.profiles[0]) db.current = db.profiles[0].id;

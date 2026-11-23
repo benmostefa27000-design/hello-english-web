@@ -63,15 +63,85 @@ function themeProgress(tid) {
   const L = lessonsFor(tid); const got = L.reduce((a, l) => a + Store.stars(l.id), 0);
   return { got, max: L.length * 3, done: L.filter(l => Store.stars(l.id) > 0).length, total: L.length };
 }
-// la prochaine leçon conseillée (sans rien bloquer : tout est ouvert)
+// la prochaine leçon conseillée (sans rien bloquer : tout est ouvert),
+// en suivant les niveaux, à partir du niveau trouvé par le test
 function nextLesson() {
-  for (const t of THEMES) for (const l of lessonsFor(t.id)) if (!Store.stars(l.id)) return l;
+  const start = Store.startLevel();
+  const order = [...LEVELS.filter(L => L.id >= start), ...LEVELS.filter(L => L.id < start)];
+  for (const L of order) for (const tid of L.themes) for (const l of lessonsFor(tid)) if (!Store.stars(l.id)) return l;
   return null;
 }
+
+// hasard « graine » : le même défi toute la journée, un nouveau chaque jour
+function seeded(seedStr) {
+  let s = 0; for (const c of seedStr) s = (s * 31 + c.charCodeAt(0)) >>> 0;
+  return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+}
+const DAILY_KINDS = [
+  { name: 'Défi des bulles', icon: '🫧', steps: k => [{ type: 'bubbles', keys: k, n: 5 }, { type: 'listen', keys: k, n: 4 }] },
+  { name: 'Défi mémoire', icon: '🧠', steps: k => [{ type: 'memory', keys: k, pairs: 6 }, { type: 'tf', keys: k, n: 4 }] },
+  { name: 'Défi de l’oreille', icon: '👂', steps: k => [{ type: 'listen', keys: k, n: 6 }, { type: 'tf', keys: k, n: 3 }] },
+  { name: 'Défi de la parole', icon: '🎤', steps: k => [{ type: 'listen', keys: k, n: 3 }, { type: 'speak', keys: k, n: 4 }] },
+  { name: 'Défi des lettres', icon: '🔤', steps: () => [{ type: 'phonics', keys: themeKeys('abc'), n: 4 }, { type: 'readword', n: 3 }] },
+  { name: 'Grand mélange', icon: '🎲', steps: k => [{ type: 'listen', keys: k, n: 3 }, { type: 'bubbles', keys: k, n: 3 }, { type: 'tf', keys: k, n: 3 }] },
+];
+function dailyChallenge() {
+  const day = Store.today(), rnd = seeded(day + (Store.profile() || {}).id);
+  const pickR = a => a[Math.floor(rnd() * a.length)];
+  // deux thèmes : un déjà vu (pour réviser) et un du niveau de l'enfant (pour découvrir)
+  const seenThemes = THEMES.filter(t => t.items.some(it => Store.level(keyOf(it)) > 0)).map(t => t.id);
+  const lvl = LEVELS.find(L => L.id === Store.startLevel()) || LEVELS[0];
+  const t1 = seenThemes.length ? pickR(seenThemes) : pickR(lvl.themes), t2 = pickR(lvl.themes.filter(x => x !== 'abc' && x !== t1));
+  const keys = [...themeKeys(t1).filter(k => !k.startsWith('abc:')), ...themeKeys(t2 || t1)].filter((k, i, a) => a.indexOf(k) === i);
+  const kind = pickR(DAILY_KINDS);
+  const pool = keys.length >= 4 ? keys : themeKeys('animals');
+  return { id: 'challenge-' + day, name: kind.name, icon: kind.icon, challenge: true, steps: kind.steps(pool) };
+}
 function lessonAfter(id) {
-  const ids = Object.keys(ALL_LESSONS); const i = ids.indexOf(id);
+  const ids = LEVELS.flatMap(L => L.themes.flatMap(t => lessonsFor(t).map(l => l.id))); const i = ids.indexOf(id);
   return i >= 0 && i < ids.length - 1 ? ALL_LESSONS[ids[i + 1]] : null;
 }
+
+/* ---------------- Niveaux : progression et test de départ ---------------- */
+function levelProgress(L) {
+  const keys = L.themes.flatMap(themeKeys);
+  const acq = keys.filter(k => Store.level(k) === 3).length;
+  const lessons = L.themes.flatMap(lessonsFor), done = lessons.filter(l => Store.stars(l.id) > 0).length;
+  const pct = Math.round((acq / keys.length * 0.6 + done / lessons.length * 0.4) * 100);
+  return { acq, words: keys.length, done, lessons: lessons.length, pct, reached: pct >= 70 };
+}
+function currentLevel() { for (const L of LEVELS) if (!levelProgress(L).reached) return L; return LEVELS[LEVELS.length - 1]; }
+
+// test de niveau : 2 mots par niveau ; on démarre au premier niveau où l'enfant se trompe
+Screens.placement = (_, ctx) => {
+  const m = mascot('bloop', 'mini'), bar = progressBar(), stage = h('div', { class: 'stage' });
+  const root = h('div', { class: 'screen session' }, h('div', { class: 'sess-head' }, h('button', { class: 'round back', onclick: () => Nav.back() }, '✕'), bar, m), stage);
+  const qs = LEVELS.flatMap(L => shuffle(L.themes.filter(t => t !== 'abc').flatMap(themeKeys)).slice(0, 2).map(k => ({ L: L.id, k })));
+  (async () => {
+    const okByLevel = {};
+    await mascotSay(m, Voice.instr('Petit jeu pour voir ce que tu connais déjà. Si tu ne sais pas, ce n’est pas grave !', "Let's see what you know!"));
+    for (let i = 0; i < qs.length; i++) {
+      if (!ctx.alive) return;
+      const q = qs[i], it = ITEM[q.k];
+      const pool = themeKeys(it.theme);
+      let resolve; const p = new Promise(r => resolve = r);
+      const grid = choiceGrid(options(q.k, pool, 3), (k, b) => { b.classList.add(k === q.k ? 'right' : 'wrong'); Sfx.tick(); resolve(k === q.k); });
+      const dunno = h('button', { class: 'btn ghost small', onclick: () => resolve(false) }, 'Je ne sais pas 🤷');
+      stage.replaceChildren(h('div', { class: 'prompt' }, h('button', { class: 'round big', onclick: () => Voice.say(spoken(it)) }, '🔊')), grid, dunno);
+      Voice.say(spoken(it));
+      const ok = await p; okByLevel[q.L] = (okByLevel[q.L] || 0) + (ok ? 1 : 0);
+      bar.set((i + 1) / qs.length); await sleep(350);
+    }
+    let start = 1; for (const L of LEVELS) { if ((okByLevel[L.id] || 0) >= 2) start = Math.min(LEVELS.length, L.id + 1); else break; }
+    Store.setPlacement(start);
+    if (!ctx.alive) return;
+    const L = LEVELS.find(x => x.id === start);
+    stage.replaceChildren(mascot('bloop', 'jumpy'), h('h2', null, `${L.icon} Niveau ${L.id} : ${L.name}`), h('p', { class: 'muted center' }, `On commence ici (${L.cefr}). Tout reste ouvert : on peut toujours revenir en arrière.`),
+      h('button', { class: 'btn big go', onclick: () => Nav.home() }, "C'est parti ! 🚀"));
+    Sfx.star(); confetti();
+  })();
+  return root;
+};
 
 // révision du jour (répétition espacée) : d'abord les mots « à revoir aujourd'hui »,
 // les plus en retard et les plus fragiles en premier, puis quelques nouveaux
@@ -159,26 +229,36 @@ Screens.session = (lesson, ctx) => {
 function finishLesson(lesson, stars) {
   const before = Store.stickerCount();
   if (lesson.free) Store.addBonus(1); else Store.setStars(lesson.id, stars);
+  const goal = Store.addActivity();
   const after = Store.stickerCount();
-  Nav.replace('reward', { lesson, stars, newSticker: after > before ? STICKERS[after - 1] : null });
+  Nav.replace('reward', { lesson, stars, newSticker: after > before ? STICKERS[after - 1] : null, chest: goal.reached, goalN: goal.n });
 }
 
-Screens.reward = ({ lesson, stars, newSticker }, ctx) => {
+Screens.reward = ({ lesson, stars, newSticker, chest, goalN }, ctx) => {
   const prof = Store.profile();
   const m = mascot('bloop', 'jumpy');
   const starRow = h('div', { class: 'stars-row' }, [1, 2, 3].map(i => h('span', { class: 'bigstar' + (i <= stars ? ' on' : '') }, '★')));
-  const next = !lesson.free && !lesson.review ? lessonAfter(lesson.id) : null;
+  const next = !lesson.free && !lesson.review && !lesson.challenge ? lessonAfter(lesson.id) : null;
   const btns = h('div', { class: 'col gap' },
     next ? h('button', { class: 'btn big go', onclick: () => openLesson(next, true) }, 'Leçon suivante ➜') : null,
     h('button', { class: 'btn', onclick: () => openLesson(lesson, true) }, '↻ Rejouer'),
     h('button', { class: 'btn ghost', onclick: () => Nav.home() }, '🏠 Accueil'));
   const sticker = newSticker ? h('div', { class: 'new-sticker pop-in' }, h('div', { class: 'stk' }, newSticker), h('div', null, 'Nouvel autocollant !')) : null;
-  const el = h('div', { class: 'screen reward' }, m, h('h2', null, pick(['Bravo', 'Super', 'Génial', 'Waouh']) + ' ' + (prof ? prof.name : '') + ' !'), starRow, sticker, btns);
+  const chestEl = chest ? h('button', { class: 'chest-box' }, h('span', { class: 'chest' }, '🧰'), h('b', null, 'Touche le coffre du jour !')) : null;
+  const goalEl = !chest && goalN && goalN < DAILY_GOAL ? h('p', { class: 'muted' }, `Objectif du jour : ${goalN}/${DAILY_GOAL} — encore ${DAILY_GOAL - goalN} pour ouvrir le coffre 🧰`) : null;
+  const el = h('div', { class: 'screen reward' }, m, h('h2', null, pick(['Bravo', 'Super', 'Génial', 'Waouh']) + ' ' + (prof ? prof.name : '') + ' !'), starRow, chestEl, sticker, goalEl, btns);
+  if (chestEl) chestEl.addEventListener('click', () => {
+    if (chestEl.classList.contains('open')) return;
+    chestEl.classList.add('open'); chestEl.querySelector('.chest').textContent = '🎁';
+    chestEl.querySelector('b').textContent = 'Coffre ouvert : +3 ⭐ !'; Sfx.star(); confetti(60); cheer(m);
+    Voice.instr('Bravo ! Tu as rempli ton objectif du jour !', 'Well done! You did your daily goal!');
+  }, { once: true });
   (async () => {
     await sleep(300); Sfx.star(); confetti();
     starRow.querySelectorAll('.on').forEach((s, i) => setTimeout(() => s.classList.add('pop'), 250 * i));
     await mascotSay(m, Voice.say(`${pick(PRAISE)} ${prof ? prof.name : ''}!`));
     if (newSticker && ctx.alive) { Sfx.star(); await Voice.instr('Tu as gagné un nouvel autocollant !', 'You have a new sticker!'); }
+    if (chest && ctx.alive) await Voice.instr('Objectif du jour réussi ! Touche le coffre !', 'Open your treasure chest!');
   })();
   return el;
 };

@@ -66,6 +66,13 @@ function mascot(kind = 'bloop', cls = '') {
 <path class="mouth" d="M53 72 L67 72 L60 82Z" fill="#FFB020"/>
 <circle cx="34" cy="74" r="6" fill="#FF8FB1" opacity=".55"/><circle cx="86" cy="74" r="6" fill="#FF8FB1" opacity=".55"/>
 </svg>` });
+  const el = bloopSVG(cls);
+  // la tenue choisie dans la garde-robe
+  const w = (typeof Store !== 'undefined' && Store.profile()) ? WARDROBE.find(x => x.id === Store.wearing()) : null;
+  if (w) el.append(h('span', { class: 'outfit outfit-' + w.pos, 'aria-hidden': 'true' }, w.e));
+  return el;
+}
+function bloopSVG(cls) {
   return h('div', { class: 'mascot bloop ' + cls, html: `
 <svg viewBox="0 0 120 120"><defs><radialGradient id="bg1" cx="38%" cy="30%"><stop offset="0" stop-color="#FFC47A"/><stop offset="1" stop-color="#FF7A2F"/></radialGradient></defs>
 <ellipse cx="60" cy="113" rx="32" ry="5" fill="#000" opacity=".1"/>
@@ -102,6 +109,11 @@ function visual(it, cls = '') {
   if (it.shape) return h('div', { class: 'vis shape ' + cls, html: shapeSVG(it.shape) });
   if (it.big) return h('div', { class: 'vis big ' + cls + (it.theme === 'abc' ? ' letter' : '') }, it.big);
   return h('div', { class: 'vis emoji ' + cls }, it.e);
+}
+// découpe une chaîne d'emojis en emojis entiers (y compris 👨‍👩‍👧‍👦)
+function splitEmoji(s) {
+  if (window.Intl && Intl.Segmenter) return Array.from(new Intl.Segmenter('fr', { granularity: 'grapheme' }).segment(s), x => x.segment).filter(x => x.trim());
+  return Array.from(s).filter(x => x.trim() && x !== '‍' && x !== '️');
 }
 const spoken = it => it.say || it.en;
 const label = it => it.theme === 'abc' ? `${it.en} – ${it.ex}` : it.en;

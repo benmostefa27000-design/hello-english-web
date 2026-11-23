@@ -425,3 +425,63 @@ h3{font-size:20px;color:var(--ink)}
 .tabs{flex-wrap:wrap}
 .tab{flex:1 1 40%}
 .screen.parent .settings>p.muted,.screen.songs>p.muted,.screen.dialogues>p.muted,.screen.pick>p.muted{background:rgba(255,255,255,.88);border-radius:16px;padding:10px 14px}
+
+/* ---- Bloop habillé ---- */
+.mascot{position:relative}
+.outfit{position:absolute;left:50%;transform:translateX(-50%);line-height:1;pointer-events:none;filter:drop-shadow(0 2px 0 rgba(43,34,87,.15))}
+.outfit-head{top:-6%;font-size:calc(var(--m,1) * 34%);width:60%;text-align:center}
+.mascot .outfit-head{font-size:2.6em}
+.mascot.hero .outfit-head{font-size:52px}.mascot.mini .outfit-head{font-size:22px;top:-14%}.mascot.chat .outfit-head{font-size:30px}
+.mascot.jumpy .outfit-head{font-size:58px}.mascot.dance .outfit-head{font-size:46px}.mascot.sleepy .outfit-head{font-size:60px}.mascot.feeder .outfit-head{font-size:38px}
+.outfit-eyes{top:36%;font-size:48px}
+.mascot.mini .outfit-eyes{font-size:22px}.mascot.chat .outfit-eyes{font-size:30px}.mascot.jumpy .outfit-eyes{font-size:60px}
+.outfit-side{top:4%;left:78%;transform:rotate(18deg);font-size:34px}
+.mascot.mini .outfit-side{font-size:16px}
+.hero-side{display:flex;flex-direction:column;align-items:flex-start;gap:10px}
+.chip.dress{font-size:14px;padding:6px 12px}
+.wardrobe-stage{display:grid;place-items:center;margin:8px 0}
+.ward-help{background:rgba(255,255,255,.88);border-radius:16px;padding:8px 12px}
+.ward{border:4px solid #fff}.ward .ward-e{font-size:40px;line-height:1.2}
+.ward.wearing{background:#E2F8E8;box-shadow:0 0 0 4px var(--green)}
+.ward.locked{opacity:.55}
+
+/* ---- Histoires animées ---- */
+.scene{position:relative;overflow:hidden;display:flex;justify-content:center;align-items:center;gap:6px;flex-wrap:wrap}
+.actor{display:inline-block;cursor:pointer;animation-fill-mode:both,none;animation-iteration-count:1,infinite}
+.actor.enter-l{animation-name:enterL,bob1;animation-duration:.7s,2.4s}
+.actor.enter-r{animation-name:enterR,bob2;animation-duration:.7s,2.8s}
+.actor.enter-up{animation-name:enterUp,bob1;animation-duration:.7s,2.2s}
+.actor.enter-pop{animation-name:popin,bob2;animation-duration:.6s,2.6s}
+.actor.idle-1{animation-timing-function:cubic-bezier(.3,1.4,.5,1),ease-in-out}
+.actor.boing{animation:boing .5s ease!important}
+@keyframes enterL{from{transform:translateX(-120%) rotate(-20deg);opacity:0}}
+@keyframes enterR{from{transform:translateX(120%) rotate(20deg);opacity:0}}
+@keyframes enterUp{from{transform:translateY(80%) scale(.6);opacity:0}}
+@keyframes bob1{50%{transform:translateY(-8px) rotate(-3deg)}}
+@keyframes bob2{50%{transform:translateY(-5px) rotate(4deg) scale(1.04)}}
+@keyframes boing{30%{transform:scale(1.35,.8)}60%{transform:scale(.9,1.2) translateY(-18px)}}
+
+/* ---- Objectif du jour, défi, coffre ---- */
+.goal{display:flex;align-items:center;gap:12px;background:#fff;border:4px solid #fff;border-radius:22px;padding:8px 14px;margin:6px 0;box-shadow:var(--lip)}
+.goal.done{background:#FFF6D6}
+.goal-chest{font-size:34px}
+.goal-body{flex:1}.goal-body b{font-size:15px}
+.goal-dots{display:flex;gap:6px;margin-top:5px}.goal-dots i{flex:1;height:10px;border-radius:99px;background:#E3DCE9}.goal-dots i.on{background:linear-gradient(90deg,var(--yellow),var(--orange))}
+.continue.challenge{background:repeating-linear-gradient(-45deg,#FF8A3D 0 18px,#FF9A55 18px 36px);box-shadow:inset 0 -6px 0 rgba(0,0,0,.12),var(--lip)}
+.continue.placement{background:repeating-linear-gradient(-45deg,#3DBE6B 0 18px,#4CCB79 18px 36px)}
+.chest-box{display:flex;flex-direction:column;align-items:center;gap:4px;background:#FFF6D6;border:4px solid #fff;border-radius:24px;padding:12px 24px;margin-bottom:12px;box-shadow:var(--lip);animation:chestWiggle 1.2s ease-in-out infinite}
+.chest-box .chest{font-size:64px;line-height:1}
+.chest-box.open{animation:popin .4s}
+@keyframes chestWiggle{0%,100%{transform:rotate(0)}20%{transform:rotate(-6deg)}40%{transform:rotate(6deg)}60%{transform:rotate(-3deg)}}
+
+/* ---- Niveaux et bilan ---- */
+.level-block{margin-bottom:18px}
+.level-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-radius:22px;border:4px solid #fff;padding:10px 14px;margin-bottom:12px;box-shadow:var(--lip)}
+.level-head .lv-ic{font-size:30px}.level-head>div{flex:1}.level-head b{display:block;font-size:17px}.level-head small{color:rgba(43,34,87,.75)}
+.level-head .pbar{flex:1 1 100%;background:rgba(255,255,255,.6)}
+.can-card{background:#fff;border-radius:18px;padding:12px 14px;margin-bottom:10px;box-shadow:var(--shadow)}
+.can-card.ok{background:#E9FBEF}
+.can-head small{display:block;color:var(--muted)}
+.can-card ul{margin:8px 0 0;padding-left:4px;list-style:none;font-weight:600;font-size:14px}
+.can-card li{margin:3px 0}
+@media (prefers-reduced-motion:reduce){.actor,.chest-box{animation:none!important}}

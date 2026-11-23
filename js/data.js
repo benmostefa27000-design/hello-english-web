@@ -655,6 +655,38 @@ const STICKERS = ['🦄','🐉','🦖','🚀','🌈','🐼','🦋','🐬','🍩'
   '🦕','🛸','🏆','🎨','🦓','🐝','🍦','🚂','🎃','⛄','🦩','🪁','🐠','🌋','🎁','🦉','🍪','🚁','🐿️','🌙',
   '🦘','🍕','🎻','🐹','🌵','🎯','🦭','🧸','🪅','🏝️','🦥','🍿','🚲','🐌','💎','🦦','🌺','🎤','🐻','🌍'];
 
+/* ---------- Niveaux (alignés sur le niveau Cambridge Pre-A1 Starters, vers A1 Movers) ---------- */
+const LEVELS = [
+  { id: 1, name: 'Premiers mots', cefr: 'Pré-A1 · début', icon: '🌱', color: '#7BDC7A',
+    themes: ['hello', 'colours', 'numbers', 'animals', 'family', 'body'],
+    can: ['Dire bonjour, au revoir, merci, s’il te plaît', 'Nommer les couleurs et compter', 'Nommer des animaux de la ferme', 'Présenter sa famille', 'Montrer les parties du corps'] },
+  { id: 2, name: 'Ma vie de tous les jours', cefr: 'Pré-A1 Starters', icon: '🌿', color: '#5DC2FF',
+    themes: ['food', 'fruit', 'clothes', 'toys', 'shapes', 'feelings'],
+    can: ['Dire ce qu’il aime manger', 'Nommer ses vêtements', 'Parler de ses jouets et de l’école', 'Reconnaître les formes', 'Dire comment il se sent'] },
+  { id: 3, name: 'Le monde autour de moi', cefr: 'Pré-A1 Starters', icon: '🌳', color: '#FFAA4D',
+    themes: ['house', 'transport', 'zoo', 'sea', 'nature', 'actions'],
+    can: ['Nommer les pièces et objets de la maison', 'Nommer les transports', 'Nommer des animaux du zoo et de la mer', 'Décrire la nature', 'Dire ce qu’il sait faire (I can…)'] },
+  { id: 4, name: 'Vers la lecture', cefr: 'Starters → A1 Movers', icon: '🌟', color: '#C49BFF',
+    themes: ['weather', 'jobs', 'abc'],
+    can: ['Parler de la météo', 'Dire quel métier il aimerait faire', 'Reconnaître toutes les lettres et leurs sons', 'Lire de petits mots tout seul'] },
+];
+const levelOfTheme = tid => LEVELS.find(L => L.themes.includes(tid)) || LEVELS[0];
+
+/* ---------- Garde-robe de Bloop (achetée avec les étoiles) ---------- */
+const WARDROBE = [
+  { id: 'flower', e: '🌸', fr: 'Fleur', price: 5, pos: 'side' },
+  { id: 'bow', e: '🎀', fr: 'Nœud', price: 8, pos: 'side' },
+  { id: 'cap', e: '🧢', fr: 'Casquette', price: 10, pos: 'head' },
+  { id: 'star', e: '⭐', fr: 'Étoile', price: 12, pos: 'side' },
+  { id: 'glasses', e: '🕶️', fr: 'Lunettes de soleil', price: 15, pos: 'eyes' },
+  { id: 'headphones', e: '🎧', fr: 'Casque de musique', price: 20, pos: 'head' },
+  { id: 'helmet', e: '⛑️', fr: 'Casque', price: 20, pos: 'head' },
+  { id: 'tophat', e: '🎩', fr: 'Chapeau magique', price: 25, pos: 'head' },
+  { id: 'grad', e: '🎓', fr: 'Toque de diplômé', price: 35, pos: 'head' },
+  { id: 'crown', e: '👑', fr: 'Couronne', price: 45, pos: 'head' },
+];
+const DAILY_GOAL = 3; // activités par jour pour ouvrir le coffre
+
 /* ---------- Comptines rythmées (paroles 100 % originales) ----------
    Bloop chante une ligne, l'enfant la répète en rythme. Mélodie jouée par l'appli. */
 const SONGS = [
