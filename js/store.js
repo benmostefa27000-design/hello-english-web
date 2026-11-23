@@ -60,8 +60,14 @@ const Store = (() => {
       const p = P(); if (!p || !key) return;
       const w = p.words[key] || (p.words[key] = { ok: 0, ko: 0, seen: 0 });
       if (good === null) w.seen++; else if (good) w.ok++; else w.ko++;
-      w.last = Date.now(); save();
+      // répétition espacée (boîtes de Leitner) : réussi → revu plus tard, raté → revu demain
+      const now = Date.now(), DAY = 864e5, GAPS = [0, 1, 2, 4, 7, 15, 30];
+      if (good === true && (w.due || 0) <= now) { w.box = Math.min(6, (w.box || 0) + 1); w.due = now + GAPS[w.box] * DAY; }
+      else if (good === false) { w.box = Math.max(0, (w.box || 0) - 2); w.due = now + DAY * 0.5; }
+      else if (good === null && w.due == null) w.due = now + DAY;
+      w.last = now; save();
     },
+    dueCount() { const p = P(); if (!p) return 0; const now = Date.now(); return Object.keys(p.words).filter(k => ITEM[k] && p.words[k].due && p.words[k].due <= now).length; },
     level(key) { // 0 nouveau · 1 vu · 2 en cours · 3 acquis
       const w = this.word(key);
       if (!w.seen && !w.ok && !w.ko) return 0;
@@ -101,5 +107,40 @@ const Store = (() => {
 
     resetProfile(id) { delete db.prog[id]; save(); },
     exportJSON() { return JSON.stringify(db); },
+
+    /* ---- transfert entre appareils : on fusionne, on ne perd rien ----
+       Un enfant est reconnu par son prénom. On garde le meilleur des deux côtés. */
+    exportData() { return { v: 1, at: Date.now(), profiles: db.profiles, prog: db.prog }; },
+    merge(data) {
+      if (!data || !Array.isArray(data.profiles) || !data.prog) throw new Error('Code invalide');
+      const res = { added: [], merged: [], skipped: [] };
+      const maxMap = (a = {}, b = {}) => { const o = Object.assign({}, a); for (const k in b) o[k] = Math.max(o[k] || 0, b[k] || 0); return o; };
+      for (const ip of data.profiles) {
+        const inProg = data.prog[ip.id] || {};
+        let lp = db.profiles.find(p => (p.name || '').trim().toLowerCase() === (ip.name || '').trim().toLowerCase());
+        if (!lp) {
+          if (db.profiles.length >= 4) { res.skipped.push(ip.name); continue; }
+          lp = Object.assign({}, ip, { id: 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5) });
+          db.profiles.push(lp); db.prog[lp.id] = JSON.parse(JSON.stringify(inProg)); res.added.push(ip.name); continue;
+        }
+        const cur = db.prog[lp.id] || (db.prog[lp.id] = { stars: {}, words: {}, days: {}, favs: [], stories: {}, dialogues: {}, moves: 0 });
+        cur.stars = maxMap(cur.stars, inProg.stars);
+        cur.days = maxMap(cur.days, inProg.days);
+        cur.stories = maxMap(cur.stories, inProg.stories);
+        cur.dialogues = maxMap(cur.dialogues, inProg.dialogues);
+        cur.words = cur.words || {};
+        for (const k in (inProg.words || {})) {
+          const a = cur.words[k], b = inProg.words[k], n = w => w ? (w.ok || 0) + (w.ko || 0) + (w.seen || 0) : -1;
+          if (n(b) > n(a)) cur.words[k] = Object.assign({}, b);
+        }
+        cur.favs = Array.from(new Set([...(cur.favs || []), ...(inProg.favs || [])]));
+        cur.moves = Math.max(cur.moves || 0, inProg.moves || 0);
+        cur.bonus = Math.max(cur.bonus || 0, inProg.bonus || 0);
+        cur.stickersSeen = Math.max(cur.stickersSeen || 0, inProg.stickersSeen || 0);
+        res.merged.push(ip.name);
+      }
+      if (!db.current && db.profiles[0]) db.current = db.profiles[0].id;
+      save(); return res;
+    },
   };
 })();

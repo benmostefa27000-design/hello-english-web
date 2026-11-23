@@ -11,12 +11,25 @@ const Voice = (() => {
 
   window.__ttsDone = id => { const p = pending[id]; if (p) { delete pending[id]; clearTimeout(p.t); p.res(); } };
 
+  // on prend la voix la plus naturelle disponible : voix « Natural / Neural / Online » (Edge, Windows),
+  // voix Google, puis les autres ; accent demandé d'abord
+  function rankVoice(v, lang) {
+    let s = 0;
+    if (v.lang === lang) s += 50; else if (v.lang && v.lang.slice(0, 2) === lang.slice(0, 2)) s += 20; else return -1;
+    if (/natural|neural/i.test(v.name)) s += 40;
+    if (/online/i.test(v.name)) s += 15;
+    if (/google/i.test(v.name)) s += 12;
+    if (/(sonia|libby|maisie|ana|aria|jenny|emma|denise|vivienne|eloise)/i.test(v.name)) s += 6; // voix claires, adaptées aux enfants
+    if (v.localService) s += 2;
+    return s;
+  }
+  function best(vs, lang) { let b = null, bs = -1; for (const v of vs) { const s = rankVoice(v, lang); if (s > bs) { bs = s; b = v; } } return bs >= 0 ? b : null; }
   function pickWebVoices() {
     if (!('speechSynthesis' in window)) return;
     const vs = speechSynthesis.getVoices();
     const accent = (Store.settings().accent === 'us') ? 'en-US' : 'en-GB';
-    enVoice = vs.find(v => v.lang === accent) || vs.find(v => v.lang && v.lang.startsWith('en')) || null;
-    frVoice = vs.find(v => v.lang === 'fr-FR') || vs.find(v => v.lang && v.lang.startsWith('fr')) || null;
+    enVoice = best(vs, accent);
+    frVoice = best(vs, 'fr-FR');
   }
   if ('speechSynthesis' in window) { pickWebVoices(); speechSynthesis.onvoiceschanged = pickWebVoices; }
 
@@ -36,6 +49,7 @@ const Voice = (() => {
         } else if ('speechSynthesis' in window) {
           const u = new SpeechSynthesisUtterance(text);
           u.lang = lang === 'en' ? (st.accent === 'us' ? 'en-US' : 'en-GB') : 'fr-FR';
+          if (lang === 'en' && (!enVoice || enVoice.lang !== u.lang)) pickWebVoices(); // l'accent a changé
           const v = lang === 'en' ? enVoice : frVoice; if (v) u.voice = v;
           u.rate = rate; u.pitch = pitch;
           u.onend = u.onerror = () => window.__ttsDone(id);
@@ -187,5 +201,30 @@ const Sfx = (() => {
       const step = 60 / bpm;
       for (let i = 0; i < n; i++) { tone(i % 2 ? 180 : 110, i * step, 0.12, 'sine', 0.25); if (i % 2) tone(2400, i * step, 0.03, 'square', 0.03); }
     },
+    tone,
   };
+})();
+
+/* ================= MUSIQUE DES COMPTINES (mélodie + rythme, en boucle, discrète sous la voix) ================= */
+const Music = (() => {
+  let timer = null;
+  const hz = m => 440 * Math.pow(2, (m - 69) / 12);
+  function start(melody, bpm) {
+    stop();
+    const beat = 60 / bpm; let i = 0;
+    const bar = () => {
+      // une mesure = 4 temps : 2 notes de mélodie par temps, une basse et un petit tambour
+      for (let b = 0; b < 4; b++) {
+        Sfx.tone(b % 2 ? 150 : 98, b * beat, 0.1, 'sine', 0.14);
+        if (b % 2) Sfx.tone(2200, b * beat, 0.025, 'square', 0.02);
+        for (let half = 0; half < 2; half++) {
+          const m = melody[i++ % melody.length];
+          Sfx.tone(hz(m), b * beat + half * beat / 2, beat / 2 * 0.9, 'triangle', 0.045);
+        }
+      }
+    };
+    bar(); timer = setInterval(bar, beat * 4 * 1000);
+  }
+  function stop() { if (timer) { clearInterval(timer); timer = null; } }
+  return { start, stop };
 })();

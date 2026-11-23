@@ -53,12 +53,14 @@ Screens.home = (_, ctx) => {
       h('span', { class: 'ci' }, THEMES.find(t => t.id === nl.theme).icon),
       h('div', null, h('small', null, 'Continuer'), h('b', null, THEMES.find(t => t.id === nl.theme).fr + ' · ' + nl.name)), h('span', { class: 'play' }, '▶')) : null,
     review ? h('button', { class: 'continue alt', onclick: () => Nav.go('session', review) },
-      h('span', { class: 'ci' }, '☀️'), h('div', null, h('small', null, '5 minutes'), h('b', null, 'Révision du jour' + (Store.stars(review.id) ? ' ✔' : ''))), h('span', { class: 'play' }, '▶')) : null,
+      h('span', { class: 'ci' }, '☀️'), h('div', null, h('small', null, Store.dueCount() ? `${Store.dueCount()} mots à revoir` : '5 minutes'), h('b', null, 'Révision du jour' + (Store.stars(review.id) ? ' ✔' : ''))), h('span', { class: 'play' }, '▶')) : null,
     h('div', { class: 'tiles' },
       tile('🗺️', 'Parcours', 'Lessons', () => Nav.go('map'), '#FFE7A8'),
       tile('🎮', 'Jeux', 'Games', () => Nav.go('games'), '#CDEBFF'),
       tile('📖', 'Histoires', 'Stories', () => Nav.go('stories'), '#FFD3E0'),
       tile('💬', 'Parler', 'Let’s talk', () => Nav.go('dialogues'), '#D7F5D0'),
+      tile('✍️', 'Lettres', 'Letters', () => Nav.go('letters'), '#EDE4FF'),
+      tile('🎵', 'Chansons', 'Songs', () => Nav.go('songs'), '#FFE0C2'),
       tile('💃', 'Bouge !', 'Move', () => Nav.go('session', { id: 'free-move', free: true, steps: [{ type: 'move', n: 8 }] }), '#FCE1FF'),
       tile('🏅', 'Autocollants', 'Stickers', () => Nav.go('album'), '#FFF1C9')),
     favEl);
@@ -72,6 +74,7 @@ function favCard(id) {
   if (kind === 'story') { const s = STORIES.find(z => z.id === x); return s && h('button', { class: 'mini-card', onclick: () => Nav.go('story', { id: x }) }, h('span', null, s.cover), s.fr); }
   if (kind === 'dlg') { const d = DIALOGUES.find(z => z.id === x); return d && h('button', { class: 'mini-card', onclick: () => Nav.go('dialogue', { id: x }) }, h('span', null, d.icon), d.fr); }
   if (kind === 'game') { const g = ACT_META[x]; return g && h('button', { class: 'mini-card', onclick: () => startGame(x) }, h('span', null, g.icon), g.fr); }
+  if (kind === 'song') { const s = SONGS.find(z => z.id === x); return s && h('button', { class: 'mini-card', onclick: () => Nav.go('song', { id: x }) }, h('span', null, s.cover), s.fr); }
   return null;
 }
 const favBtn = id => { const b = h('button', { class: 'fav' + (Store.isFav(id) ? ' on' : ''), onclick: e => { e.stopPropagation(); Store.toggleFav(id); b.classList.toggle('on'); Sfx.pop(); } }, '♥'); return b; };
@@ -116,7 +119,7 @@ Screens.words = ({ id }) => {
 };
 
 /* ---------------- Jeux libres ---------------- */
-const FREE_GAMES = ['listen', 'bubbles', 'memory', 'tf', 'speak', 'count', 'colour', 'sounds', 'initial', 'move'];
+const FREE_GAMES = ['listen', 'bubbles', 'memory', 'tf', 'speak', 'count', 'colour', 'sounds', 'initial', 'trace', 'phonics', 'readword', 'move'];
 Screens.games = () => h('div', { class: 'screen games' }, topBar('Jeux'),
   h('div', { class: 'tiles' }, FREE_GAMES.map(g => h('div', { class: 'tile game', onclick: () => startGame(g) }, favBtn('game:' + g), h('span', { class: 'ti' }, ACT_META[g].icon), h('b', null, ACT_META[g].fr)))));
 
@@ -124,8 +127,78 @@ function startGame(g) {
   if (g === 'count' || g === 'colour' || g === 'move') return Nav.go('session', { id: 'free-' + g, free: true, steps: [{ type: g, n: g === 'move' ? 8 : 6 }] });
   if (g === 'sounds') return Nav.go('session', { id: 'free-sounds', free: true, steps: [{ type: 'sounds', keys: themeKeys('animals'), n: 8 }] });
   if (g === 'initial') return Nav.go('session', { id: 'free-initial', free: true, steps: [{ type: 'initial', keys: themeKeys('abc'), n: 8 }] });
+  if (g === 'trace') return Nav.go('letters');
+  if (g === 'phonics') return Nav.go('session', { id: 'free-phonics', free: true, steps: [{ type: 'phonics', keys: themeKeys('abc'), n: 6 }] });
+  if (g === 'readword') return Nav.go('session', { id: 'free-read', free: true, steps: [{ type: 'readword', n: 5 }] });
   Nav.go('pickTheme', { game: g });
 }
+
+/* ---------------- Lettres : écrire, sons, lecture ---------------- */
+Screens.letters = () => {
+  const ABC = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  const traceOne = L => Nav.go('session', { id: 'free-trace-' + L, free: true, steps: [{ type: 'trace', letters: [L] }, { type: 'trace', letters: [L], lower: true }] });
+  const big = (icon, title, sub, go, bg) => h('button', { class: 'island l', style: { background: bg, width: '100%' }, onclick: go },
+    h('span', { class: 'ii' }, icon), h('div', null, h('b', null, title), h('small', null, sub)));
+  return h('div', { class: 'screen letters' }, topBar('✍️ Lettres'),
+    big('🔉', 'Le son des lettres', 'buh, kuh, ssss… quel mot commence comme ça ?', () => startGame('phonics'), '#FFF1C9'),
+    big('📖', 'Je lis', 'Lis des petits mots, son par son', () => startGame('readword'), '#D7F5D0'),
+    big('🎲', 'Écris 4 lettres au hasard', 'Majuscules puis minuscules', () => {
+      const ls = shuffle(ABC).slice(0, 4);
+      Nav.go('session', { id: 'free-trace', free: true, steps: [{ type: 'trace', letters: ls }, { type: 'trace', letters: ls, lower: true }] });
+    }, '#CDEBFF'),
+    h('h3', null, 'Choisis une lettre à écrire'),
+    h('div', { class: 'abc-grid' }, ABC.map(L => {
+      const lv = Store.level('abc:l' + L);
+      return h('button', { class: 'abc-key' + (lv === 3 ? ' ok' : ''), onclick: () => traceOne(L) }, h('b', null, L), h('small', null, L.toLowerCase()));
+    })));
+};
+
+/* ---------------- Chansons (comptines rythmées) ---------------- */
+Screens.songs = () => h('div', { class: 'screen stories songs' }, topBar('🎵 Chansons'),
+  h('p', { class: 'muted center' }, 'Bloop chante, et toi tu répètes en rythme !'),
+  h('div', { class: 'cards' }, SONGS.map(s => h('div', { class: 'scard', onclick: () => Nav.go('song', { id: s.id }) },
+    favBtn('song:' + s.id), h('span', { class: 'cover' }, s.cover), h('b', null, s.title), h('small', null, s.fr), Store.done('songs', s.id) ? h('span', { class: 'check' }, '✔') : null))));
+
+Screens.song = ({ id }, ctx) => {
+  const s = SONGS.find(x => x.id === id);
+  const m = mascot('bloop', 'dance');
+  const scene = h('div', { class: 'song-scene' }, h('span', { class: 'pop-in' }, s.cover));
+  const lines = h('div', { class: 'song-lines' }, s.lines.map(L => h('div', { class: 'song-line' }, h('span', null, L.en), Store.settings().frInstr ? h('small', null, L.fr) : null)));
+  const turn = h('div', { class: 'song-turn' });
+  const play = h('button', { class: 'btn big go' }, '▶ Chanter');
+  const el = h('div', { class: 'screen song' }, topBar(s.cover + ' ' + s.title, { right: favBtn('song:' + id) }), m, scene, turn, lines, play);
+  Nav.onLeave(ctx, () => Music.stop());
+  let running = false;
+  play.onclick = async () => {
+    if (running) return; running = true; play.disabled = true;
+    Sfx.unlock(); Music.start(s.melody, s.bpm);
+    const rows = lines.querySelectorAll('.song-line');
+    // 2 tours : 1) Bloop chante, l'enfant répète  2) tout le monde ensemble
+    for (let round = 0; round < 2; round++) {
+      for (let i = 0; i < s.lines.length; i++) {
+        if (!ctx.alive) return;
+        const L = s.lines[i];
+        rows.forEach((r, k) => r.classList.toggle('on', k === i));
+        scene.replaceChildren(h('span', { class: 'pop-in' }, L.e));
+        turn.textContent = round === 0 ? '🎤 Bloop chante…' : '🎶 Tous ensemble !';
+        await mascotSay(m, Voice.say(L.en, 'en', { rate: 1.0, pitch: 1.25 }));
+        if (!ctx.alive) return;
+        if (round === 0) {
+          turn.textContent = '🧒 À toi !'; turn.classList.add('kid');
+          await sleep(900 + L.en.length * 75);
+          turn.classList.remove('kid');
+        } else await sleep(300);
+      }
+    }
+    Music.stop();
+    if (!ctx.alive) return;
+    rows.forEach(r => r.classList.remove('on'));
+    turn.textContent = '';
+    Store.setDone('songs', id);
+    finishLesson({ id: 'free-song-' + id, free: true }, 3);
+  };
+  return el;
+};
 Screens.pickTheme = ({ game }) => {
   const seen = Object.keys(ITEM).filter(k => Store.level(k) > 0);
   const run = keys => Nav.go('session', { id: 'free-' + game, free: true, steps: [{ type: game, keys, n: 8, pairs: Math.min(6, keys.length) }] });
@@ -289,7 +362,7 @@ Screens.timeup = () => h('div', { class: 'screen timeup' },
 /* ---------------- Espace parents ---------------- */
 Screens.parent = ({ tab = 'progress', pid }) => {
   const S = Store.settings();
-  const tabs = h('div', { class: 'tabs' }, [['progress', '📊 Progrès'], ['settings', '⚙️ Réglages'], ['profiles', '👧 Profils']].map(([k, t]) =>
+  const tabs = h('div', { class: 'tabs' }, [['progress', '📊 Progrès'], ['settings', '⚙️ Réglages'], ['profiles', '👧 Profils'], ['transfer', '🔄 Transfert']].map(([k, t]) =>
     h('button', { class: 'tab' + (k === tab ? ' sel' : ''), onclick: () => Nav.replace('parent', { tab: k, pid }) }, t)));
   let body;
   if (tab === 'progress') {
@@ -333,6 +406,30 @@ Screens.parent = ({ tab = 'progress', pid }) => {
         NATIVE ? h('button', { class: 'btn ghost', onclick: () => window.Android.openTtsSettings() }, 'Réglages des voix Android') : null),
       (!ts.en || !ts.fr) ? h('p', { class: 'warn' }, `⚠️ Voix ${!ts.en ? 'anglaise' : 'française'} absente : installe-la dans « Réglages des voix Android » (Google Speech Services).`) : null,
       h('p', { class: 'muted small' }, 'Tout est gratuit, sans publicité, et les données restent sur ce téléphone.'));
+  } else if (tab === 'transfer') {
+    const out = h('textarea', { class: 'input code-box', readonly: 'readonly', rows: 4, placeholder: 'Le code apparaîtra ici…', onfocus: e => e.target.select() });
+    const inp = h('textarea', { class: 'input code-box', rows: 4, placeholder: 'Colle ici le code reçu de l’autre appareil' });
+    const canShare = NATIVE ? !!window.Android.shareText : !!navigator.share;
+    body = h('div', { class: 'settings' },
+      h('p', { class: 'muted' }, 'Pour retrouver les progrès sur la tablette et sur l’ordinateur : crée un code ici, envoie-le-toi (message, e-mail…), puis colle-le sur l’autre appareil. Les progrès sont fusionnés : on garde le meilleur des deux, rien n’est effacé.'),
+      h('h3', null, '1. Envoyer depuis cet appareil'),
+      h('button', { class: 'btn go', onclick: async () => { out.value = await Transfer.encode(Store.exportData()); out.focus(); } }, '📦 Créer le code'),
+      out,
+      h('div', { class: 'row gap wrap' },
+        h('button', { class: 'btn', onclick: () => out.value ? Transfer.copy(out.value).then(ok => toast(ok ? 'Code copié ✔' : 'Sélectionne le code et copie-le')) : toast('Crée d’abord le code') }, '📋 Copier'),
+        canShare ? h('button', { class: 'btn', onclick: () => out.value ? Transfer.share(out.value) : toast('Crée d’abord le code') }, '📤 Partager') : null),
+      h('h3', null, '2. Recevoir sur cet appareil'),
+      inp,
+      h('button', { class: 'btn go', onclick: async () => {
+        try {
+          const res = Store.merge(await Transfer.decode(inp.value));
+          const parts = [];
+          if (res.merged.length) parts.push('fusionné : ' + res.merged.join(', '));
+          if (res.added.length) parts.push('ajouté : ' + res.added.join(', '));
+          if (res.skipped.length) parts.push('ignoré (4 profils max) : ' + res.skipped.join(', '));
+          modal([h('h3', null, 'Progrès récupérés ✔'), h('p', null, parts.join(' · ') || 'Rien à importer.'), h('button', { class: 'btn go', onclick: () => { closeModal(); Nav.reset(Store.profiles().length > 1 ? 'who' : 'home'); } }, 'OK')]);
+        } catch (e) { toast('Ce code ne marche pas. Vérifie qu’il est complet.'); }
+      } }, '📥 Importer et fusionner'));
   } else {
     body = h('div', null,
       Store.profiles().map(p => h('div', { class: 'prof-row' }, h('span', { class: 'av' }, p.avatar), h('b', null, p.name), h('small', null, p.age + ' ans'),
@@ -356,6 +453,34 @@ Screens.parent = ({ tab = 'progress', pid }) => {
     toast(r.heard.length ? 'Entendu : ' + r.heard[0] : 'Rien entendu (' + (r.error || '?') + ')');
   }
 };
+/* Code de transfert : JSON compressé (si possible) puis en base64, préfixé pour reconnaître le format */
+const Transfer = {
+  async encode(obj) {
+    const bytes = new TextEncoder().encode(JSON.stringify(obj));
+    let data = bytes, tag = 'HE1:';
+    if (window.CompressionStream) {
+      try { data = new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer()); tag = 'HE1z:'; } catch (e) { data = bytes; }
+    }
+    let bin = ''; for (let i = 0; i < data.length; i += 0x8000) bin += String.fromCharCode.apply(null, data.subarray(i, i + 0x8000));
+    return tag + btoa(bin);
+  },
+  async decode(code) {
+    const s = (code || '').replace(/\s+/g, '');
+    const m = s.match(/^(HE1z?):(.+)$/); if (!m) throw new Error('format');
+    const bin = atob(m[2]); let bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    if (m[1] === 'HE1z') bytes = new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+    return JSON.parse(new TextDecoder().decode(bytes));
+  },
+  async copy(text) {
+    if (NATIVE && window.Android.copyText) { window.Android.copyText(text); return true; }
+    try { await navigator.clipboard.writeText(text); return true; } catch (e) { return false; }
+  },
+  share(text) {
+    if (NATIVE && window.Android.shareText) return window.Android.shareText(text);
+    navigator.share({ title: 'Hello English : sauvegarde', text }).catch(() => {});
+  },
+};
+
 function confirmBox(msg, ok) {
   modal([h('p', null, msg), h('div', { class: 'row gap center' }, h('button', { class: 'btn danger', onclick: () => { closeModal(); ok(); } }, 'Oui'), h('button', { class: 'btn ghost', onclick: closeModal }, 'Annuler'))]);
 }

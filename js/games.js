@@ -72,7 +72,9 @@ const ACTIVITIES = {
   /* 👂 Écoute et touche */
   async listen(api, cfg) {
     const pool = cfg.keys, n = cfg.n || 5;
-    const nOpt = cfg.opts || (pool.length >= 6 ? 4 : 3);
+    // difficulté adaptée : 2 choix si les mots sont nouveaux et fragiles, jusqu'à 4 quand ils sont bien connus
+    const avgLvl = pool.reduce((a, k) => a + Store.level(k), 0) / Math.max(1, pool.length);
+    const nOpt = cfg.opts || Math.min(pool.length, avgLvl >= 2 ? 4 : avgLvl >= 1 ? 3 : 2);
     const phrase = cfg.phrase; // ex. "Touch your {w}!"
     const say = it => phrase ? phrase.replace('{w}', spoken(it)).replace('{a} ', it.a ? it.a + ' ' : '') : spoken(it);
     await api.instr(cfg.fr || 'Écoute et touche la bonne image.', cfg.en || 'Listen and touch!');
@@ -344,11 +346,159 @@ const ACTIVITIES = {
     Store.countMoves();
     await api.say('Great dancing! Well done!');
   },
+
+  /* ✍️ Trace la lettre avec le doigt */
+  async trace(api, cfg) {
+    const letters = cfg.letters || shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')).slice(0, cfg.n || 3);
+    const lower = !!cfg.lower;
+    await api.instr('Suis la lettre avec ton doigt !', 'Trace the letter!');
+    for (let r = 0; r < letters.length; r++) {
+      api.check();
+      const it = ITEM['abc:l' + letters[r]];
+      const glyph = lower ? letters[r].toLowerCase() : letters[r];
+      const pad = new TracePad(glyph);
+      let resolve; const p = new Promise(r => resolve = r);
+      const sayIt = () => api.say(`${spoken(it)}. ${it.ph}, ${it.ph}, ${it.ex}.`);
+      const clear = h('button', { class: 'round', 'aria-label': 'Effacer', onclick: () => pad.clear() }, '🧽');
+      const rep = h('button', { class: 'round', 'aria-label': 'Écouter', onclick: sayIt }, '🔊');
+      const hint = h('div', { class: 'ex' }, h('span', { class: 'exE' }, it.exE), ' ', it.ex);
+      pad.onStroke = async () => {
+        const res = pad.score();
+        if (res.ok) {
+          pad.lock(); pad.celebrate(); Sfx.good(); cheer(api.mascot); Store.mark(keyOf(it), true);
+          await api.say(`${spoken(it)}! ${it.ph}, ${it.ph}, ${it.ex}!`); resolve();
+        } else if (res.tooMessy) { Sfx.bad(); toast('Reste bien sur la lettre 🙂'); pad.clear(); }
+      };
+      api.stage.replaceChildren(hint, pad.el, h('div', { class: 'row center gap' }, rep, clear));
+      await sayIt();
+      await p; api.progress((r + 1) / letters.length); await sleep(500);
+    }
+  },
+
+  /* 🔉 Le son des lettres : quel mot commence par ce son ? */
+  async phonics(api, cfg) {
+    const pool = cfg.keys || themeKeys('abc');
+    await api.instr('Écoute le son. Quel mot commence par ce son ?', 'Listen to the sound!');
+    const ts = targets(pool, cfg.n || 5);
+    for (let r = 0; r < ts.length; r++) {
+      api.check();
+      const it = ITEM[ts[r]];
+      const opts = options(ts[r], pool, 3);
+      let first = true, resolve; const p = new Promise(r => resolve = r);
+      const prompt = () => api.say(`${it.ph}… ${it.ph}…`, 'en', { rate: 0.8 });
+      const grid = h('div', { class: 'choices n3' }, opts.map(k => {
+        const o = ITEM[k];
+        const b = h('button', { class: 'choice' }, h('div', { class: 'vis emoji' }, o.exE));
+        b.addEventListener('click', async () => {
+          if (k === ts[r]) {
+            b.classList.add('right'); b.append(h('b', { class: 'cap-letter' }, o.en));
+            await api.good(ts[r], first, false); await api.say(`${it.ph}, ${it.ph}, ${it.ex}!`); resolve();
+          } else { first = false; b.classList.add('wrong'); setTimeout(() => b.classList.remove('wrong'), 600); await api.bad(ts[r]); await api.say(o.ex); }
+        });
+        return b;
+      }));
+      api.stage.replaceChildren(h('div', { class: 'card pop-in' }, h('div', { class: 'vis big letter xl' }, '?'), h('div', { class: 'word' }, '🔉')),
+        h('div', { class: 'prompt' }, h('button', { class: 'round big', onclick: prompt }, '🔊')), grid);
+      await prompt();
+      await p; api.progress((r + 1) / ts.length); await sleep(400);
+    }
+  },
+
+  /* 📖 Je lis un petit mot : son par son, puis le mot entier */
+  async readword(api, cfg) {
+    const list = shuffle(READ_WORDS).slice(0, cfg.n || 4);
+    await api.instr('Touche chaque lettre pour entendre son son, puis lis le mot !', 'Sound it out!');
+    for (let r = 0; r < list.length; r++) {
+      api.check();
+      const W = list[r];
+      const phOf = ch => (ITEM['abc:l' + ch.toUpperCase()] || {}).ph || ch;
+      const tiles = h('div', { class: 'read-tiles' }, W.w.split('').map(ch => {
+        const t = h('button', { class: 'read-tile' }, ch);
+        t.addEventListener('click', () => { t.classList.remove('lit'); void t.offsetWidth; t.classList.add('lit'); Voice.stop(); api.say(phOf(ch), 'en', { rate: 0.8 }); });
+        return t;
+      }));
+      const blend = async () => {
+        const ts = tiles.querySelectorAll('.read-tile');
+        for (let i = 0; i < ts.length; i++) { ts[i].classList.add('lit'); await api.say(phOf(W.w[i]), 'en', { rate: 0.8 }); }
+        await sleep(200); await api.say(W.w);
+      };
+      const others = shuffle(READ_WORDS.filter(x => x.w !== W.w)).slice(0, 2);
+      let first = true, resolve; const p = new Promise(r => resolve = r);
+      const grid = h('div', { class: 'choices n3' }, shuffle([W, ...others]).map(o => {
+        const b = h('button', { class: 'choice' }, h('div', { class: 'vis emoji' }, o.e));
+        b.addEventListener('click', async () => {
+          if (o === W) { b.classList.add('right'); Sfx.good(); cheer(api.mascot); Store.mark('read:' + W.w, first); await api.say(`${W.w}! ${pick(PRAISE)}`); resolve(); }
+          else { first = false; b.classList.add('wrong'); setTimeout(() => b.classList.remove('wrong'), 600); Sfx.bad(); Store.mark('read:' + W.w, false); }
+        });
+        return b;
+      }));
+      api.stage.replaceChildren(tiles, h('div', { class: 'row center gap' }, h('button', { class: 'btn small go', onclick: blend }, '🔊 Lis avec moi')), grid);
+      await blend();
+      await p; api.progress((r + 1) / list.length); await sleep(400);
+    }
+  },
 };
+
+/* ---------------- Tablette à tracer (canvas) ---------------- */
+class TracePad {
+  constructor(glyph) {
+    this.glyph = glyph; this.done = false;
+    this.size = Math.min(320, window.innerWidth - 48);
+    this.dpr = Math.min(2, window.devicePixelRatio || 1);
+    const S = this.size * this.dpr;
+    this.el = h('canvas', { class: 'trace-pad', width: S, height: S, style: { width: this.size + 'px', height: this.size + 'px' } });
+    this.ctx = this.el.getContext('2d');
+    this.user = document.createElement('canvas'); this.user.width = this.user.height = S;
+    this.mask = document.createElement('canvas'); this.mask.width = this.mask.height = S;
+    this.font = `900 ${Math.round(S * 0.78)}px Nunito, system-ui, sans-serif`;
+    this.brush = S * 0.075;
+    const m = this.mask.getContext('2d'); this.drawGlyph(m, '#000');
+    this.render();
+    let drawing = false, last = null;
+    const pos = e => { const b = this.el.getBoundingClientRect(); return [(e.clientX - b.left) * this.dpr * (this.size / b.width), (e.clientY - b.top) * this.dpr * (this.size / b.height)]; };
+    this.el.addEventListener('pointerdown', e => { if (this.done) return; drawing = true; last = pos(e); try { this.el.setPointerCapture(e.pointerId); } catch (x) {} this.line(last, last); });
+    this.el.addEventListener('pointermove', e => { if (!drawing) return; const p = pos(e); this.line(last, p); last = p; });
+    const end = () => { if (!drawing) return; drawing = false; if (this.onStroke) this.onStroke(); };
+    this.el.addEventListener('pointerup', end); this.el.addEventListener('pointercancel', end);
+  }
+  drawGlyph(c, color) { c.font = this.font; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = color; c.fillText(this.glyph, this.user.width / 2, this.user.height * 0.53); }
+  line(a, b) {
+    const u = this.user.getContext('2d');
+    u.strokeStyle = '#7B61FF'; u.lineWidth = this.brush; u.lineCap = u.lineJoin = 'round';
+    u.beginPath(); u.moveTo(a[0], a[1]); u.lineTo(b[0], b[1]); u.stroke();
+    this.render();
+  }
+  render(color) {
+    const c = this.ctx, S = this.user.width;
+    c.clearRect(0, 0, S, S);
+    this.drawGlyph(c, color || '#E7E0F5');
+    if (!color) c.drawImage(this.user, 0, 0);
+  }
+  clear() { if (this.done) return; this.user.getContext('2d').clearRect(0, 0, this.user.width, this.user.height); this.render(); }
+  lock() { this.done = true; }
+  celebrate() { this.render('#FF7A2F'); this.el.classList.add('pop-in'); }
+  // part de la lettre recouverte, et part du tracé hors de la lettre (on reste tolérant)
+  score() {
+    const S = this.user.width, step = Math.max(3, Math.round(S / 90));
+    const M = this.mask.getContext('2d').getImageData(0, 0, S, S).data;
+    const U = this.user.getContext('2d').getImageData(0, 0, S, S).data;
+    let inLetter = 0, covered = 0, drawn = 0, outside = 0;
+    // le masque « élargi » : un point du tracé compte comme « sur la lettre » s'il en est proche
+    const near = (x, y) => { const r = Math.round(this.brush * 0.6); for (const [dx, dy] of [[0, 0], [r, 0], [-r, 0], [0, r], [0, -r]]) { const X = x + dx, Y = y + dy; if (X >= 0 && Y >= 0 && X < S && Y < S && M[(Y * S + X) * 4 + 3] > 0) return true; } return false; };
+    for (let y = 0; y < S; y += step) for (let x = 0; x < S; x += step) {
+      const i = (y * S + x) * 4, m = M[i + 3] > 0, u = U[i + 3] > 0;
+      if (m) { inLetter++; if (u) covered++; }
+      if (u) { drawn++; if (!m && !near(x, y)) outside++; }
+    }
+    const cov = inLetter ? covered / inLetter : 0, out = drawn ? outside / drawn : 0;
+    return { ok: cov >= 0.55 && out <= 0.35, tooMessy: drawn > inLetter * 0.6 && out > 0.5, cov, out };
+  }
+}
 
 const ACT_META = {
   discover: { fr: 'Découvrir', icon: '🔍' }, listen: { fr: 'Écoute et touche', icon: '👂' }, tf: { fr: 'Vrai ou faux', icon: '👍' },
   memory: { fr: 'Memory', icon: '🧠' }, bubbles: { fr: 'Bulles', icon: '🫧' }, speak: { fr: 'Je parle', icon: '🎤' },
   count: { fr: 'Compte', icon: '🔢' }, colour: { fr: 'Colorie', icon: '🎨' }, sounds: { fr: 'Cris des animaux', icon: '🐮' },
   initial: { fr: 'Première lettre', icon: '🔤' }, move: { fr: 'Bouge !', icon: '💃' },
+  trace: { fr: 'Trace les lettres', icon: '✍️' }, phonics: { fr: 'Le son des lettres', icon: '🔉' }, readword: { fr: 'Je lis', icon: '📖' },
 };

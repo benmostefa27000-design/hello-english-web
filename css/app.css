@@ -393,3 +393,35 @@ body{background:
 h3{font-size:20px;color:var(--ink)}
 
 @media (prefers-reduced-motion:reduce){.tile .ti{transition:none}}
+
+/* ---- Lettres : tracer, sons, lecture ---- */
+.trace-pad{display:block;margin:0 auto;background:#fff;border-radius:28px;border:5px solid #fff;box-shadow:var(--shadow);touch-action:none;cursor:crosshair}
+.read-tiles{display:flex;gap:10px;justify-content:center;margin:6px 0}
+.read-tile{width:78px;height:92px;border-radius:22px;background:#fff;border:4px solid #fff;box-shadow:inset 0 -6px 0 rgba(43,34,87,.08),var(--lip);font-size:58px;font-weight:900;color:var(--purple);display:grid;place-items:center;transition:background .2s,transform .2s}
+.read-tile.lit{background:#FFF3C4;transform:translateY(-4px)}
+.cap-letter{position:absolute;top:6px;left:10px;font-size:22px;color:var(--orange)}
+.choice{position:relative}
+.abc-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.abc-key{aspect-ratio:1;border-radius:20px;background:#fff;border:4px solid #fff;box-shadow:var(--lip);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}
+.abc-key b{font-size:30px;font-weight:900;color:var(--purple)}
+.abc-key small{font-size:18px;color:var(--muted)}
+.abc-key.ok{background:#E2F8E8}
+.letters .island{margin-bottom:12px}
+@media (min-width:600px){.abc-grid{grid-template-columns:repeat(7,1fr)}}
+
+/* ---- Chansons ---- */
+.song{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
+.song .mascot{width:110px;height:110px}
+.song-scene{font-size:84px;line-height:1;min-height:96px}
+.song-turn{min-height:34px;font-size:20px;font-weight:900;color:var(--ink);padding:4px 16px;border-radius:99px}
+.song-turn.kid{background:var(--yellow);animation:popin .3s}
+.song-lines{width:100%;display:flex;flex-direction:column;gap:8px}
+.song-line{background:rgba(255,255,255,.75);border-radius:18px;padding:10px 14px;font-size:18px;transition:background .2s,transform .2s}
+.song-line small{display:block;color:var(--muted);font-size:13px;font-weight:600}
+.song-line.on{background:#fff;transform:scale(1.03);box-shadow:var(--lip);color:var(--purple)}
+
+/* ---- Transfert ---- */
+.code-box{font-size:13px;font-family:ui-monospace,Consolas,monospace;resize:vertical;margin:8px 0;word-break:break-all}
+.tabs{flex-wrap:wrap}
+.tab{flex:1 1 40%}
+.screen.parent .settings>p.muted,.screen.songs>p.muted,.screen.dialogues>p.muted,.screen.pick>p.muted{background:rgba(255,255,255,.88);border-radius:16px;padding:10px 14px}

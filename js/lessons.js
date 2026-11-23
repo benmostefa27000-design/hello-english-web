@@ -18,6 +18,14 @@ const SPECIAL = {
   food: k => ({ name: 'Bloop a faim', icon: '😋', steps: [{ type: 'listen', keys: k, n: 6, phrase: 'Give Bloop {a} {w}, please!', feed: true, fr: 'Bloop a faim ! Donne-lui ce qu’il demande.', en: 'Bloop is hungry!' }] }),
   clothes: k => ({ name: 'Habille-toi', icon: '🧥', steps: [{ type: 'listen', keys: k, n: 6, phrase: 'Where is the {w}?', fr: 'Trouve le bon vêtement.', en: 'Find it!' }] }),
   abc: k => ({ name: 'Première lettre', icon: '🔤', steps: [{ type: 'initial', keys: k, n: 6 }] }),
+  zoo: k => ({ name: 'Qui fait ce bruit ?', icon: '🐯', steps: [{ type: 'sounds', keys: k, n: 5 }, { type: 'listen', keys: k, n: 4, phrase: 'Where is the {w}?', fr: 'Trouve le bon animal.', en: 'Find it!' }] }),
+  sea: k => ({ name: 'La pêche', icon: '🎣', steps: [{ type: 'bubbles', keys: k, n: 6 }, { type: 'listen', keys: k, n: 4, phrase: 'Find the {w}!', fr: 'Trouve le bon animal de la mer.', en: 'Find it!' }] }),
+  fruit: k => ({ name: 'Bloop a faim', icon: '😋', steps: [{ type: 'listen', keys: k, n: 6, phrase: 'Give Bloop {a} {w}, please!', feed: true, fr: 'Bloop a faim ! Donne-lui ce qu’il demande.', en: 'Bloop is hungry!' }] }),
+  house: k => ({ name: 'Où est-ce ?', icon: '🔎', steps: [{ type: 'listen', keys: k, n: 6, phrase: 'Where is the {w}?', fr: 'Trouve la bonne chose dans la maison.', en: 'Where is it?' }] }),
+  transport: k => ({ name: 'Les bruits', icon: '📣', steps: [{ type: 'sounds', keys: k, n: 6 }] }),
+  nature: k => ({ name: 'La balade', icon: '🥾', steps: [{ type: 'listen', keys: k, n: 6, phrase: 'Look! Can you see the {w}?', fr: 'Écoute et trouve-le dans la nature.', en: 'Can you see it?' }] }),
+  actions: k => ({ name: 'Montre-moi !', icon: '🤸', steps: [{ type: 'listen', keys: k, n: 6, phrase: 'Show me: {w}!', fr: 'Écoute Bloop et trouve la bonne action.', en: 'Show me!' }, { type: 'move', n: 4 }] }),
+  jobs: k => ({ name: 'Qui est-ce ?', icon: '🕵️', steps: [{ type: 'listen', keys: k, n: 6, phrase: 'Who is the {w}?', fr: 'Trouve le bon métier.', en: 'Who is it?' }] }),
 };
 
 function lessonsFor(tid) {
@@ -25,8 +33,21 @@ function lessonsFor(tid) {
   const keys = themeKeys(tid);
   const groups = chunk(keys, tid === 'abc' ? 5 : 4);
   const L = [];
-  groups.forEach((g, i) => L.push({ id: `${tid}-d${i + 1}`, name: groups.length > 1 ? `Découverte ${i + 1}` : 'Découverte', icon: '🔍',
-    steps: [{ type: 'discover', keys: g }, { type: 'listen', keys: g, n: 5 }, { type: 'tf', keys: g, n: 3 }, { type: 'speak', keys: g, n: 2 }] }));
+  groups.forEach((g, i) => {
+    L.push({ id: `${tid}-d${i + 1}`, name: groups.length > 1 ? `Découverte ${i + 1}` : 'Découverte', icon: '🔍',
+      steps: [{ type: 'discover', keys: g }, { type: 'listen', keys: g, n: 5 }, { type: 'tf', keys: g, n: 3 }, { type: 'speak', keys: g, n: 2 }] });
+    // alphabet : après chaque groupe de lettres, on les écrit (majuscules puis minuscules)
+    if (tid === 'abc') {
+      const letters = g.map(k => ITEM[k].en);
+      L.push({ id: `abc-w${i + 1}`, name: `J'écris ${letters.join(' ')}`, icon: '✍️',
+        steps: [{ type: 'trace', letters }, { type: 'trace', letters, lower: true }] });
+    }
+  });
+  if (tid === 'abc') {
+    L.push({ id: 'abc-ph', name: 'Le son des lettres', icon: '🔉', steps: [{ type: 'phonics', keys, n: 6 }] });
+    L.push({ id: 'abc-rd1', name: 'Je lis 1', icon: '📖', steps: [{ type: 'readword', n: 4 }] });
+    L.push({ id: 'abc-rd2', name: 'Je lis 2', icon: '📖', steps: [{ type: 'phonics', keys, n: 3 }, { type: 'readword', n: 5 }] });
+  }
   L.push({ id: `${tid}-play`, name: 'On joue !', icon: '🎮', steps: [{ type: 'memory', keys, pairs: Math.min(6, keys.length) }, { type: 'bubbles', keys, n: 4 }] });
   if (SPECIAL[tid]) L.push(Object.assign({ id: `${tid}-sp` }, SPECIAL[tid](keys)));
   STORIES.filter(s => s.theme === tid).forEach(s => L.push({ id: `${tid}-st-${s.id}`, name: 'Histoire', icon: '📖', story: s.id }));
@@ -52,13 +73,18 @@ function lessonAfter(id) {
   return i >= 0 && i < ids.length - 1 ? ALL_LESSONS[ids[i + 1]] : null;
 }
 
-// révision du jour : les mots fragiles + quelques nouveaux
+// révision du jour (répétition espacée) : d'abord les mots « à revoir aujourd'hui »,
+// les plus en retard et les plus fragiles en premier, puis quelques nouveaux
 function dailyReview() {
+  const now = Date.now();
   const seen = Object.keys(ITEM).filter(k => Store.level(k) > 0);
-  let keys = seen.sort((a, b) => {
+  const due = seen.filter(k => (Store.word(k).due || 0) <= now);
+  const rest = seen.filter(k => !due.includes(k));
+  const fragile = (a, b) => {
     const A = Store.word(a), B = Store.word(b);
-    return (A.ok - A.ko * 2) - (B.ok - B.ko * 2) || (A.last || 0) - (B.last || 0);
-  }).slice(0, 6);
+    return (A.box || 0) - (B.box || 0) || (A.ok - A.ko * 2) - (B.ok - B.ko * 2) || (A.last || 0) - (B.last || 0);
+  };
+  let keys = [...due.sort(fragile), ...rest.sort(fragile)].slice(0, 6);
   if (keys.length < 6) {
     const nl = nextLesson(); const t = nl ? nl.theme : 'hello';
     keys.push(...themeKeys(t).filter(k => !keys.includes(k)).slice(0, 6 - keys.length));
