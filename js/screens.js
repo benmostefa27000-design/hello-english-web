@@ -445,6 +445,7 @@ Screens.parent = ({ tab = 'progress', pid }) => {
     body = h('div', { class: 'settings' },
       setRow('Accent', h('div', { class: 'segs' }, seg('accent', 'uk', '🇬🇧 Anglais'), seg('accent', 'us', '🇺🇸 Américain'))),
       setRow('Vitesse de la voix', h('input', { type: 'range', min: 0.6, max: 1.1, step: 0.05, value: S.speed, oninput: e => Store.setSetting('speed', Number(e.target.value)), onchange: () => Voice.say('Hello! How are you?') })),
+      toggle('realVoices', 'Vraies voix enregistrées', 'Les mots et phrases enregistrés remplacent la voix de synthèse'),
       toggle('frInstr', 'Consignes en français', 'Sinon, tout est en anglais (immersion)'),
       toggle('showText', 'Afficher les mots écrits', 'Utile quand l’enfant commence à lire'),
       toggle('mic', 'Micro (exercices de prononciation)', 'Tolérant : l’enfant n’est jamais bloqué'),
@@ -454,7 +455,8 @@ Screens.parent = ({ tab = 'progress', pid }) => {
         h('button', { class: 'btn', onclick: () => Voice.say('Hello! I am Bloop. Let’s learn English!') }, '🔊 Tester la voix anglaise'),
         h('button', { class: 'btn', onclick: () => Voice.say('Bonjour, je suis Bloop !', 'fr') }, '🔊 Voix française'),
         Mic.available() ? h('button', { class: 'btn', onclick: micTest }, '🎤 Tester le micro') : null,
-        NATIVE ? h('button', { class: 'btn ghost', onclick: () => window.Android.openTtsSettings() }, 'Réglages des voix Android') : null),
+        NATIVE ? h('button', { class: 'btn ghost', onclick: () => window.Android.openTtsSettings() }, 'Réglages des voix Android') : null,
+        h('button', { class: 'btn ghost', onclick: showCredits }, '📜 Crédits des voix')),
       (!ts.en || !ts.fr) ? h('p', { class: 'warn' }, `⚠️ Voix ${!ts.en ? 'anglaise' : 'française'} absente : installe-la dans « Réglages des voix Android » (Google Speech Services).`) : null,
       h('p', { class: 'muted small' }, 'Tout est gratuit, sans publicité, et les données restent sur ce téléphone.'));
   } else if (tab === 'report') {
@@ -493,7 +495,9 @@ Screens.parent = ({ tab = 'progress', pid }) => {
     const inp = h('textarea', { class: 'input code-box', rows: 4, placeholder: 'Colle ici le code reçu de l’autre appareil' });
     const canShare = NATIVE ? !!window.Android.shareText : !!navigator.share;
     body = h('div', { class: 'settings' },
-      h('p', { class: 'muted' }, 'Pour retrouver les progrès sur la tablette et sur l’ordinateur : crée un code ici, envoie-le-toi (message, e-mail…), puis colle-le sur l’autre appareil. Les progrès sont fusionnés : on garde le meilleur des deux, rien n’est effacé.'),
+      syncBox(tab),
+      h('h3', null, 'Transfert manuel (sans internet)'),
+      h('p', { class: 'muted' }, 'Pour retrouver les progrès sur un autre appareil : crée un code ici, envoie-le-toi (message, e-mail…), puis colle-le sur l’autre appareil. Les progrès sont fusionnés : on garde le meilleur des deux, rien n’est effacé.'),
       h('h3', null, '1. Envoyer depuis cet appareil'),
       h('button', { class: 'btn go', onclick: async () => { out.value = await Transfer.encode(Store.exportData()); out.focus(); } }, '📦 Créer le code'),
       out,
@@ -562,6 +566,42 @@ const Transfer = {
     navigator.share({ title: 'Hello English : sauvegarde', text }).catch(() => {});
   },
 };
+
+// encadré « synchro automatique » de l'espace parents
+function syncBox(tab) {
+  const refresh = () => Nav.replace('parent', { tab });
+  if (!Sync.available()) return h('div', { class: 'sync-box' }, h('b', null, '☁️ Synchro automatique'), h('p', { class: 'muted small' }, 'Pas encore activée dans cette version de l’appli.'));
+  if (!Sync.enabled()) {
+    const inp = h('input', { class: 'input', placeholder: 'XXXX-XXXX-XXXX-XXXX', maxlength: 19, style: { textTransform: 'uppercase' } });
+    return h('div', { class: 'sync-box' }, h('b', null, '☁️ Synchro automatique'),
+      h('p', { class: 'muted small' }, 'Les progrès se mettent à jour tout seuls entre la tablette et l’ordinateur. Sur le premier appareil, crée un code famille ; sur les autres, entre ce même code.'),
+      h('button', { class: 'btn go', onclick: async () => { toast('Activation…'); const ok = await Sync.start(Sync.newCode()); toast(ok ? 'Synchro activée ✔' : 'Échec : vérifie internet'); refresh(); } }, '✨ Créer un code famille'),
+      h('p', { class: 'muted small' }, 'Ou j’ai déjà un code :'), inp,
+      h('button', { class: 'btn', onclick: async () => {
+        const c = inp.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        if (c.length !== 16) return toast('Le code a 16 caractères');
+        toast('Connexion…'); const ok = await Sync.start(c.match(/.{4}/g).join('-'));
+        toast(ok ? 'Synchro activée ✔ progrès fusionnés' : 'Échec : vérifie le code et internet'); refresh();
+      } }, '🔗 Relier cet appareil'));
+  }
+  const s = Sync.status(), last = Sync.lastSync();
+  return h('div', { class: 'sync-box on' }, h('b', null, '☁️ Synchro automatique activée'),
+    h('p', null, 'Code famille : ', h('b', { class: 'fam-code' }, Sync.family())),
+    h('p', { class: 'muted small' }, 'Entre ce code sur tes autres appareils (espace parents → Transfert). Garde-le pour toi : il donne accès aux progrès.'),
+    h('p', { class: 'small' }, s.startsWith('err') ? '⚠️ ' + s.slice(4) : last ? '✔ Dernière synchro : ' + new Date(last).toLocaleString('fr-FR') : '…'),
+    h('div', { class: 'row gap wrap' },
+      h('button', { class: 'btn', onclick: async () => { toast('Synchro…'); const ok = await Sync.now(); toast(ok ? 'À jour ✔' : 'Échec : vérifie internet'); refresh(); } }, '🔄 Synchroniser maintenant'),
+      h('button', { class: 'btn ghost', onclick: () => confirmBox('Arrêter la synchro sur cet appareil ? (les progrès restent ici)', () => { Sync.stop(); refresh(); }) }, 'Arrêter ici')));
+}
+
+// crédits des enregistrements (licences libres : on nomme les auteurs)
+function showCredits() {
+  const cr = typeof AUDIO_CREDITS !== 'undefined' ? AUDIO_CREDITS : [];
+  modal([h('h3', null, '📜 Crédits des voix'),
+    h('p', { class: 'muted small' }, cr.length ? 'Mots enregistrés par des bénévoles anglophones sur Wikimedia Commons, sous licence libre. Merci à eux !' : 'Aucun enregistrement pour l’instant.'),
+    h('div', { class: 'credits' }, cr.map(c => h('div', null, h('b', null, c.word), ' — ', c.author, ' · ', c.license))),
+    h('button', { class: 'btn go', onclick: closeModal }, 'Fermer')]);
+}
 
 function confirmBox(msg, ok) {
   modal([h('p', null, msg), h('div', { class: 'row gap center' }, h('button', { class: 'btn danger', onclick: () => { closeModal(); ok(); } }, 'Oui'), h('button', { class: 'btn ghost', onclick: closeModal }, 'Annuler'))]);

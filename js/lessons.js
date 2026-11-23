@@ -230,6 +230,7 @@ function finishLesson(lesson, stars) {
   const before = Store.stickerCount();
   if (lesson.free) Store.addBonus(1); else Store.setStars(lesson.id, stars);
   const goal = Store.addActivity();
+  Sync.soon();
   const after = Store.stickerCount();
   Nav.replace('reward', { lesson, stars, newSticker: after > before ? STICKERS[after - 1] : null, chest: goal.reached, goalN: goal.n });
 }

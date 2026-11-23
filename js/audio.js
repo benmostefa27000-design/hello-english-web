@@ -33,9 +33,33 @@ const Voice = (() => {
   }
   if ('speechSynthesis' in window) { pickWebVoices(); speechSynthesis.onvoiceschanged = pickWebVoices; }
 
+  /* ---- vrais enregistrements : si un fichier audio existe pour ce texte, on le joue ---- */
+  let player = null;
+  const audioKey = t => (t || '').toLowerCase().replace(/[’']/g, "'").replace(/[^a-z0-9' ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  function recordedFor(text, lang) {
+    const map = (typeof AUDIO_MAP !== 'undefined') ? AUDIO_MAP : null;
+    if (!map || lang !== 'en' || Store.settings().realVoices === false) return null;
+    return map[audioKey(text)] || null;
+  }
+  function playFile(src, id, rate) {
+    try { if (player) player.pause(); } catch (e) {}
+    player = new Audio(src);
+    player.playbackRate = Math.max(0.7, Math.min(1.1, rate / 0.85));
+    player.onended = player.onerror = () => window.__ttsDone(id);
+    const p = player.play(); if (p && p.catch) p.catch(() => window.__ttsDone(id));
+  }
+
   function say(text, lang = 'en', opts = {}) {
     if (!text) return Promise.resolve();
     const st = Store.settings();
+    const rec = recordedFor(text, lang);
+    if (rec) {
+      const id = 'a' + (++seq);
+      return new Promise(res => {
+        pending[id] = { res, t: setTimeout(() => window.__ttsDone(id), 8000) };
+        playFile(rec, id, (opts.rate || 1) * st.speed);
+      });
+    }
     const rate = (opts.rate || 1) * (lang === 'en' ? st.speed : 1);
     const pitch = opts.pitch || 1.1;
     const id = 'u' + (++seq);
@@ -62,6 +86,7 @@ const Voice = (() => {
   }
 
   function stop() {
+    try { if (player) player.pause(); } catch (e) {}
     try { if (NATIVE) window.Android.stopSpeak(); else if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch (e) {}
     Object.keys(pending).forEach(k => window.__ttsDone(k));
   }

@@ -485,3 +485,9 @@ h3{font-size:20px;color:var(--ink)}
 .can-card ul{margin:8px 0 0;padding-left:4px;list-style:none;font-weight:600;font-size:14px}
 .can-card li{margin:3px 0}
 @media (prefers-reduced-motion:reduce){.actor,.chest-box{animation:none!important}}
+.credits{max-height:46vh;overflow:auto;text-align:left;font-size:12.5px;font-weight:600;background:#fff;border-radius:14px;padding:10px;margin:8px 0 12px}
+.credits div{padding:3px 0;border-bottom:1px solid #EEE6F3}
+.sync-box{background:#fff;border-radius:20px;padding:14px;margin:6px 0 14px;box-shadow:var(--shadow)}
+.sync-box.on{background:#E9FBEF}
+.sync-box p{margin:6px 0}
+.fam-code{font-family:ui-monospace,Consolas,monospace;font-size:18px;letter-spacing:1px;-webkit-user-select:all;user-select:all}

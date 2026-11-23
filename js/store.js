@@ -3,7 +3,7 @@
 
 const Store = (() => {
   const KEY = 'helloenglish.v1';
-  const DEF_SETTINGS = { accent: 'uk', speed: 0.85, frInstr: true, mic: true, sfx: true, limitMin: 0, showText: true };
+  const DEF_SETTINGS = { accent: 'uk', speed: 0.85, frInstr: true, mic: true, sfx: true, limitMin: 0, showText: true, realVoices: true };
   let db;
 
   function load() {
