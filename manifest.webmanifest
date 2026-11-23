@@ -1,0 +1,16 @@
+{
+  "name": "Hello English",
+  "short_name": "Hello English",
+  "description": "L'anglais en jouant, pour les 4-8 ans.",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#5EC4FF",
+  "theme_color": "#5EC4FF",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
