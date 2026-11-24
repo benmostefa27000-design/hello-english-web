@@ -517,3 +517,6 @@ h3{font-size:20px;color:var(--ink)}
 .g-done { text-align: center; display: flex; flex-direction: column; gap: 4px; font-size: 20px; color: #1d3557; }
 .g-report { background: #F1F6FF; border-radius: 14px; padding: 10px 12px; font-weight: 600; }
 @media (prefers-reduced-motion: reduce) { .g-step.now { animation: none; } }
+
+/* Découverte : prononciation juste */
+.card.discover.said { outline: 5px solid #4CD07D; box-shadow: 0 0 0 10px rgba(76,208,125,.25); transition: outline .2s, box-shadow .2s; }

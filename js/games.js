@@ -58,13 +58,18 @@ const ACTIVITIES = {
         h('button', { class: 'fr-chip', onclick: () => api.say(it.fr, 'fr') }, '🇫🇷 ', it.fr));
       const next = h('button', { class: 'btn big go' }, i === list.length - 1 ? 'Fini ! ✔' : 'Suivant ➜');
       const rep = h('button', { class: 'round big', onclick: sayIt }, '🔊');
-      const micBtn = Mic.available() ? h('button', { class: 'round big mic', onclick: () => api.tryVoice(spoken(it), micBtn, keyOf(it)) }, '🎤') : null;
+      // prononciation juste → on passe tout seul au mot suivant
+      let advance; const spokenOk = new Promise(r => advance = r);
+      const micBtn = Mic.available() ? h('button', { class: 'round big mic', onclick: async () => {
+        if (micBtn.classList.contains('listening')) return;
+        if (await api.tryVoice(spoken(it), micBtn, keyOf(it))) { card.classList.add('said'); await sleep(300); advance(); }
+      } }, '🎤') : null;
       api.stage.replaceChildren(card, h('div', { class: 'row center' }, rep, micBtn), next);
       card.addEventListener('click', e => { if (e.target === card || e.target.classList.contains('vis') || e.target.closest('.vis')) sayIt(); });
       Store.mark(keyOf(it), null);
       await sayIt();
       api.progress((i + 1) / list.length);
-      await waitClick(next);
+      await Promise.race([waitClick(next), spokenOk]);
       Voice.stop();
     }
   },

@@ -214,11 +214,12 @@ Screens.session = (lesson, ctx) => {
       if (!r.heard.length) return { ok: false, silent: true };
       return { ok: Mic.score(expected, r.heard) >= 0.5, heard: r.heard };
     },
+    // renvoie true si la prononciation est juste
     async tryVoice(expected, btn, key) {
-      if (!(await Mic.ensurePermission())) { toast('Micro non autorisé'); return; }
+      if (!(await Mic.ensurePermission())) { toast('Micro non autorisé'); return false; }
       const r = await api.listenFor(expected, btn);
-      if (r.ok) { Sfx.good(); cheer(m); Store.mark(key, true); api.say(pick(PRAISE)); }
-      else { api.say(r.silent ? 'Say it louder!' : 'Listen: ' + expected); }
+      if (r.ok) { Sfx.good(); cheer(m); Store.mark(key, true); await api.say(pick(PRAISE)); return true; }
+      api.say(r.silent ? 'Say it louder!' : 'Listen: ' + expected); return false;
     },
   };
 
