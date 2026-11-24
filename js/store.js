@@ -178,3 +178,6 @@ const Store = (() => {
     },
   };
 })();
+
+/* Progrès venus de l'ancienne version de l'appli Android (voir android.js) */
+if (window.__pendingMerge) { try { Store.merge(JSON.parse(window.__pendingMerge)); } catch (e) {} delete window.__pendingMerge; }
