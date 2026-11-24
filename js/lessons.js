@@ -174,12 +174,22 @@ Screens.session = (lesson, ctx) => {
   const root = h('div', { class: 'screen session' }, head, stage);
   let errors = 0;
 
+  /* Écoute d'abord : les réponses ne sont pas cliquables pendant que Bloop parle */
+  let busy = 0, busyGuard = null;
+  const listening = pr => {
+    busy++; stage.classList.add('busy');
+    clearTimeout(busyGuard); busyGuard = setTimeout(() => { busy = 0; stage.classList.remove('busy'); }, 9000); // sécurité
+    return Promise.resolve(pr).finally(() => { if (--busy <= 0) { busy = 0; stage.classList.remove('busy'); } });
+  };
+  /* Appuis au hasard : 3 erreurs en moins de 5 secondes → pause, et Bloop demande d'écouter */
+  let wrongs = [];
+
   const api = {
     stage, mascot: m,
     alive: () => ctx.alive,
     check() { if (!ctx.alive) throw STOP; },
-    say(text, lang = 'en', o) { if (!ctx.alive) return Promise.resolve(); return mascotSay(m, Voice.say(text, lang, o)); },
-    instr(fr, en) { if (!ctx.alive) return Promise.resolve(); return mascotSay(m, Voice.instr(fr, en)); },
+    say(text, lang = 'en', o) { if (!ctx.alive) return Promise.resolve(); return listening(mascotSay(m, Voice.say(text, lang, o))); },
+    instr(fr, en) { if (!ctx.alive) return Promise.resolve(); return listening(mascotSay(m, Voice.instr(fr, en))); },
     progress: f => bar.set((stepIdx + f) / lesson.steps.length),
     async good(key, firstTry, speak = true) {
       Sfx.good(); cheer(m); Store.mark(key, !!firstTry);
@@ -188,6 +198,13 @@ Screens.session = (lesson, ctx) => {
     async bad(key) {
       errors++; Sfx.bad(); Store.mark(key, false);
       m.classList.add('sad'); setTimeout(() => m.classList.remove('sad'), 700);
+      const now = Date.now(); wrongs = wrongs.filter(t => now - t < 5000); wrongs.push(now);
+      if (wrongs.length >= 3) {
+        wrongs = []; stage.classList.add('calm');
+        await listening(mascotSay(m, Voice.instr('Doucement… Écoute bien la question !', 'Slow down… Listen carefully!')));
+        await sleep(800); stage.classList.remove('calm');
+        return;
+      }
       if (Math.random() < 0.5) await (Store.settings().frInstr ? Voice.say(pick(RETRY_FR), 'fr') : api.say(pick(RETRY_EN)));
     },
     // écoute l'enfant et dit si c'est bon (tolérant)
@@ -230,17 +247,22 @@ function finishLesson(lesson, stars) {
   const before = Store.stickerCount();
   if (lesson.free) Store.addBonus(1); else Store.setStars(lesson.id, stars);
   const goal = Store.addActivity();
+  const guided = Guided.complete();
   Sync.soon();
   const after = Store.stickerCount();
-  Nav.replace('reward', { lesson, stars, newSticker: after > before ? STICKERS[after - 1] : null, chest: goal.reached, goalN: goal.n });
+  Nav.replace('reward', { lesson, stars, newSticker: after > before ? STICKERS[after - 1] : null, chest: goal.reached, goalN: goal.n, guided });
 }
 
-Screens.reward = ({ lesson, stars, newSticker, chest, goalN }, ctx) => {
+Screens.reward = ({ lesson, stars, newSticker, chest, goalN, guided }, ctx) => {
   const prof = Store.profile();
   const m = mascot('bloop', 'jumpy');
   const starRow = h('div', { class: 'stars-row' }, [1, 2, 3].map(i => h('span', { class: 'bigstar' + (i <= stars ? ' on' : '') }, '★')));
   const next = !lesson.free && !lesson.review && !lesson.challenge ? lessonAfter(lesson.id) : null;
-  const btns = h('div', { class: 'col gap' },
+  // mode guidé : un seul bouton, vers l'activité suivante (ou fin de la journée)
+  const btns = guided ? h('div', { class: 'col gap' }, Guided.finished()
+    ? h('button', { class: 'btn big go', onclick: () => Nav.home() }, 'Fini pour aujourd’hui ! 🎉')
+    : h('button', { class: 'btn big go', onclick: () => Guided.start(true) }, 'Continuer ➜'))
+  : h('div', { class: 'col gap' },
     next ? h('button', { class: 'btn big go', onclick: () => openLesson(next, true) }, 'Leçon suivante ➜') : null,
     h('button', { class: 'btn', onclick: () => openLesson(lesson, true) }, '↻ Rejouer'),
     h('button', { class: 'btn ghost', onclick: () => Nav.home() }, '🏠 Accueil'));

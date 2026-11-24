@@ -42,6 +42,7 @@ Screens.home = (_, ctx) => {
   const review = Object.keys(ITEM).some(k => Store.level(k) > 0) ? dailyReview() : null;
   const tile = (icon, fr, en, go, color) => h('button', { class: 'tile', style: { background: color }, onclick: go }, h('span', { class: 'ti' }, icon), h('b', null, fr), h('small', null, en));
   const favs = Store.favs();
+  const G = Guided.on(), gDone = G && Guided.finished();
   const favEl = favs.length ? h('div', { class: 'section' }, h('h3', null, '❤️ Mes favoris'), h('div', { class: 'hscroll' }, favs.map(favCard).filter(Boolean))) : null;
   const el = h('div', { class: 'screen home' },
     h('div', { class: 'home-top' },
@@ -49,8 +50,14 @@ Screens.home = (_, ctx) => {
       h('div', { class: 'chips' }, h('span', { class: 'chip' }, '🔥 ', String(Store.streak())), h('span', { class: 'chip' }, '⭐ ', String(Store.totalStars())),
         h('button', { class: 'chip lock', onclick: () => parentGate(() => Nav.go('parent', {})) }, '🔒'))),
     h('div', { class: 'hero' }, m, h('div', { class: 'hero-side' }, h('div', { class: 'speech' }, `Hello ${p.name}!`),
-      h('button', { class: 'chip dress', onclick: () => Nav.go('wardrobe') }, '👕 Habille Bloop'))),
+      !G || gDone ? h('button', { class: 'chip dress', onclick: () => Nav.go('wardrobe') }, '👕 Habille Bloop') : null)),
     goalBar(),
+    // mode guidé : un seul gros bouton, le reste est caché
+    G ? Guided.card(p.name) : null,
+    G && gDone ? h('div', { class: 'tiles' },
+      tile('🏅', 'Autocollants', 'Stickers', () => Nav.go('album'), '#FFF1C9'),
+      tile('👕', 'Habille Bloop', 'Dress up', () => Nav.go('wardrobe'), '#FCE1FF')) : null,
+    ...(G ? [] : [
     !Store.placed() && Object.keys(ITEM).every(k => Store.level(k) === 0) ? h('button', { class: 'continue placement', onclick: () => Nav.go('placement') },
       h('span', { class: 'ci' }, '🎯'), h('div', null, h('small', null, '2 minutes'), h('b', null, 'Quel est mon niveau ?')), h('span', { class: 'play' }, '▶')) : null,
     nl ? h('button', { class: 'continue', onclick: () => openLesson(nl) },
@@ -69,7 +76,7 @@ Screens.home = (_, ctx) => {
       tile('🎵', 'Chansons', 'Songs', () => Nav.go('songs'), '#FFE0C2'),
       tile('💃', 'Bouge !', 'Move', () => Nav.go('session', { id: 'free-move', free: true, steps: [{ type: 'move', n: 8 }] }), '#FCE1FF'),
       tile('🏅', 'Autocollants', 'Stickers', () => Nav.go('album'), '#FFF1C9')),
-    favEl);
+    favEl]));
   if (!greeted) { greeted = true; setTimeout(() => ctx.alive && mascotSay(m, Voice.say(`Hello ${p.name}!`)), 500); }
   m.addEventListener('click', () => { cheer(m); mascotSay(m, Voice.say(pick(['Hello!', "Let's play!", 'I love English!', `Hi ${p.name}!`]))); });
   return el;
@@ -450,6 +457,8 @@ Screens.parent = ({ tab = 'progress', pid }) => {
       toggle('showText', 'Afficher les mots écrits', 'Utile quand l’enfant commence à lire'),
       toggle('mic', 'Micro (exercices de prononciation)', 'Tolérant : l’enfant n’est jamais bloqué'),
       toggle('sfx', 'Petits sons', ''),
+      toggle('guided', 'Mode guidé', 'Un seul gros bouton : Bloop enchaîne les activités du jour dans l’ordre, le reste est caché'),
+      S.guided ? setRow('Activités par jour (mode guidé)', h('div', { class: 'segs' }, [3, 4, 5].map(v => seg('guidedN', v, v + ' activités')))) : null,
       setRow("Temps d'écran par jour", h('div', { class: 'segs wrap' }, [0, 10, 15, 20, 30, 45, 60].map(v => seg('limitMin', v, v ? v + ' min' : 'Illimité')))),
       h('div', { class: 'row gap wrap' },
         h('button', { class: 'btn', onclick: () => Voice.say('Hello! I am Bloop. Let’s learn English!') }, '🔊 Tester la voix anglaise'),
@@ -474,6 +483,7 @@ Screens.parent = ({ tab = 'progress', pid }) => {
       weak.length ? `À retravailler : ${weak.map(k => ITEM[k].en).join(', ')}` : ''].filter(Boolean);
     body = h('div', null,
       Store.profiles().length > 1 ? h('div', { class: 'segs' }, Store.profiles().map(x => h('button', { class: 'seg' + (x.id === p.id ? ' sel' : ''), onclick: () => Nav.replace('parent', { tab, pid: x.id }) }, x.avatar + ' ' + x.name))) : null,
+      Store.settings().guided ? h('p', { class: 'g-report' }, `🧭 Mode guidé terminé ${Store.guidedDays(7)} jour(s) sur les 7 derniers · aujourd’hui : ${Math.min(Store.guided().i, Guided.kinds().length)}/${Guided.kinds().length} activités`) : null,
       h('div', { class: 'kpis' }, kpi('⏱️', mins + ' min', 'cette semaine'), kpi('✅', acts, 'activités'), kpi('🆕', newWords.length, 'mots acquis'), kpi(CL.icon, 'Niv. ' + CL.id, CL.cefr)),
       newWords.length ? h('div', { class: 'weak' }, newWords.slice(0, 18).map(k => h('button', { class: 'tchip', onclick: () => Voice.say(spoken(ITEM[k])) }, visual(ITEM[k], 'xs'), ITEM[k].en))) : null,
       h('h3', null, 'Ce que ton enfant sait faire'),

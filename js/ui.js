@@ -32,6 +32,7 @@ const Nav = (() => {
     Voice.stop(); Mic.stop(); closeModal();
     const root = document.getElementById('app');
     const ctx = { _c: [], alive: true, name, params: params || {} };
+    window.__navAt = performance.now();
     current = ctx;
     const el = Screens[name](ctx.params, ctx);
     root.replaceChildren(el);

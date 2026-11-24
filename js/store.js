@@ -3,7 +3,7 @@
 
 const Store = (() => {
   const KEY = 'helloenglish.v1';
-  const DEF_SETTINGS = { accent: 'uk', speed: 0.85, frInstr: true, mic: true, sfx: true, limitMin: 0, showText: true, realVoices: true };
+  const DEF_SETTINGS = { accent: 'uk', speed: 0.85, frInstr: true, mic: true, sfx: true, limitMin: 0, showText: true, realVoices: true, guided: false, guidedN: 4 };
   let db;
 
   function load() {
@@ -126,6 +126,15 @@ const Store = (() => {
       if (g.n >= DAILY_GOAL && !g.claimed) { g.claimed = true; p.bonus = (p.bonus || 0) + 3; p.chests = (p.chests || 0) + 1; reached = true; }
       save(); return { reached, n: g.n };
     },
+    /* ---- mode guidé : où en est l'enfant dans le déroulement du jour ---- */
+    guided() { const p = P(); return (p && p.guided && p.guided.d === today()) ? p.guided : { d: today(), i: 0 }; },
+    guidedStep(total) {
+      const p = P(); if (!p) return;
+      const g = this.guided(); g.i++; p.guided = g;
+      if (g.i >= total) { p.gdays = p.gdays || {}; p.gdays[today()] = 1; }
+      save(); return g;
+    },
+    guidedDays(n = 7) { const p = P(); return this.daysLog(n).filter(d => p && p.gdays && p.gdays[d.k]).length; },
     actsLog(n = 7) { const p = P(); return this.daysLog(n).map(d => ({ d: d.d, k: d.k, s: d.s, a: p && p.acts ? (p.acts[d.k] || 0) : 0 })); },
 
     /* ---- niveau de départ (test de niveau) ---- */
